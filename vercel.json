@@ -1,0 +1,7 @@
+{
+  "buildCommand": "cd nebula-app && npm install && npm run build",
+  "outputDirectory": "nebula-app/.next",
+  "framework": "nextjs",
+  "installCommand": "cd nebula-app && npm install",
+  "devCommand": "cd nebula-app && npm run dev"
+}
