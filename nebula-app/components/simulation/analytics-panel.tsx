@@ -48,7 +48,7 @@ export function AnalyticsPanel() {
                 </linearGradient>
               </defs>
               <Area type="monotone" dataKey="dau" stroke="#147b58" strokeWidth={1.5} fill="url(#dauGrad)" dot={false} />
-              <Tooltip contentStyle={{ background: '#18181c', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, fontSize: 11 }} formatter={(v: number) => [Math.round(v).toLocaleString(), 'DAU']} />
+              <Tooltip contentStyle={{ background: '#18181c', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, fontSize: 11 }} formatter={(v: unknown) => [Math.round(Number(v)).toLocaleString(), 'DAU']} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
