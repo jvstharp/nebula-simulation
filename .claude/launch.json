@@ -1,0 +1,15 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "nebula-app (Next.js dev)",
+      "runtimeExecutable": "C:\\Users\\aokp6\\scoop\\apps\\nodejs\\current\\node.exe",
+      "runtimeArgs": [
+        "C:\\Users\\aokp6\\Documents\\webiste files - do not delete\\Nebula Simulation files\\nebula-app\\node_modules\\next\\dist\\bin\\next",
+        "dev"
+      ],
+      "cwd": "C:\\Users\\aokp6\\Documents\\webiste files - do not delete\\Nebula Simulation files\\nebula-app",
+      "port": 3000
+    }
+  ]
+}
