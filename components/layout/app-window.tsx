@@ -102,10 +102,18 @@ export function AppWindow({
 }: AppWindowProps) {
   const { setScreen, minimizeWindow } = useAppStore();
   const [maximized, setMaximized] = useState(false);
+  const [isMinimizing, setIsMinimizing] = useState(false);
+  const [justRestored, setJustRestored] = useState(true);
   type Pos = { x: number; y: number; w: number; h: number };
   const [pos, setPos] = useState<Pos | null>(null);
   const posRef = useRef<Pos | null>(null);
   posRef.current = pos;
+
+  /* Clear restore animation after it plays */
+  useEffect(() => {
+    const t = setTimeout(() => setJustRestored(false), 320);
+    return () => clearTimeout(t);
+  }, []);
 
   /* Set initial centered position on mount (client-only) */
   useEffect(() => {
@@ -123,7 +131,10 @@ export function AppWindow({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleClose    = () => setScreen('desktop');
-  const handleMinimize = () => minimizeWindow({ screen: screenKey, label, accentColor });
+  const handleMinimize = () => {
+    setIsMinimizing(true);
+    setTimeout(() => minimizeWindow({ screen: screenKey, label, accentColor }), 280);
+  };
   const handleMaximize = () => setMaximized(v => !v);
 
   /* ── Drag ── */
@@ -207,8 +218,10 @@ export function AppWindow({
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
       };
 
+  const animClass = isMinimizing ? 'window-minimizing' : justRestored ? 'window-restoring' : '';
+
   return (
-    <div style={windowStyle}>
+    <div style={windowStyle} className={animClass || undefined}>
       {/* Resize handles */}
       {!maximized && pos && HANDLES.map(dir => (
         <div key={dir} style={handleStyle(dir)} onMouseDown={onResizeDown(dir)} />
