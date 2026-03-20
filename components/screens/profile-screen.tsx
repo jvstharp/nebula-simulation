@@ -290,6 +290,149 @@ export function ProfileScreen() {
         {/* ── Main content ── */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px 36px', background: '#161616' }}>
 
+          {/* ── Profile Header: Two-card hero ─────────────────────────── */}
+          <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 14, marginBottom: 28 }}>
+
+            {/* ── Left: Identity card ── */}
+            <div style={{
+              background: '#18181c',
+              border: '1px solid rgba(255,255,255,0.07)',
+              borderRadius: 12,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.5)',
+              padding: '32px 20px 28px',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              textAlign: 'center', gap: 0,
+            }}>
+              {/* Avatar */}
+              <div style={{
+                width: 120, height: 120, borderRadius: '50%',
+                background: 'linear-gradient(145deg, #c97b50, #7b3a1e)',
+                border: '3px solid rgba(20,123,88,0.35)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 0 28px rgba(20,123,88,0.20)',
+                marginBottom: 18, flexShrink: 0,
+              }}>
+                <svg width="76" height="76" viewBox="0 0 46 46" fill="none">
+                  <ellipse cx="23" cy="18" rx="9"  ry="10" fill="rgba(255,255,255,0.85)" />
+                  <ellipse cx="23" cy="40" rx="15" ry="11" fill="rgba(255,255,255,0.85)" />
+                  <ellipse cx="23" cy="12" rx="10" ry="7"  fill="#2a1a0e" />
+                  <ellipse cx="12" cy="19" rx="2.8" ry="8" fill="#2a1a0e" />
+                  <ellipse cx="34" cy="19" rx="2.8" ry="8" fill="#2a1a0e" />
+                </svg>
+              </div>
+              {/* Name */}
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#f0f0f3', marginBottom: 8, letterSpacing: '-0.02em' }}>
+                {displayName}
+              </div>
+              {/* Premium badge */}
+              <span style={{
+                fontSize: 11.5, fontWeight: 600, color: T.primary,
+                background: 'rgba(20,123,88,0.12)',
+                border: '1px solid rgba(20,123,88,0.28)',
+                borderRadius: 99, padding: '4px 14px',
+              }}>
+                Premium User
+              </span>
+            </div>
+
+            {/* ── Right: Bio & details card ── */}
+            <div style={{
+              background: '#18181c',
+              border: '1px solid rgba(255,255,255,0.07)',
+              borderRadius: 12,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.5)',
+              padding: '22px 26px 20px',
+            }}>
+              {/* Card header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#f0f0f3', letterSpacing: '-0.01em' }}>
+                  Bio &amp; other details
+                </span>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: T.success, flexShrink: 0 }} />
+              </div>
+
+              {/* Fields grid — 2 columns × 3 rows */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 24px', marginBottom: 16 }}>
+
+                {/* Row 1 */}
+                <div>
+                  <div style={{ fontSize: 10.5, color: 'rgba(240,240,243,0.38)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4, fontWeight: 600 }}>My Role</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#f0f0f3' }}>Senior Product Manager</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10.5, color: 'rgba(240,240,243,0.38)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4, fontWeight: 600 }}>My Experience Level</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#f0f0f3' }}>Senior · 6+ years</div>
+                </div>
+
+                {/* Row 2 */}
+                <div>
+                  <div style={{ fontSize: 10.5, color: 'rgba(240,240,243,0.38)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4, fontWeight: 600 }}>My Company</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#f0f0f3' }}>Nexus Technologies</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10.5, color: 'rgba(240,240,243,0.38)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4, fontWeight: 600 }}>My Industry</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#f0f0f3' }}>B2B SaaS</div>
+                </div>
+
+                {/* Row 3 */}
+                <div>
+                  <div style={{ fontSize: 10.5, color: 'rgba(240,240,243,0.38)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4, fontWeight: 600 }}>My City or Region</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#f0f0f3' }}>San Francisco, CA</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10.5, color: 'rgba(240,240,243,0.38)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4, fontWeight: 600 }}>Availability</div>
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    fontSize: 11, fontWeight: 600, color: T.success,
+                    background: 'rgba(40,200,64,0.10)',
+                    border: '1px solid rgba(40,200,64,0.22)',
+                    borderRadius: 99, padding: '3px 10px',
+                  }}>
+                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: T.success, flexShrink: 0, display: 'inline-block' }} />
+                    Available for Simulation
+                  </span>
+                </div>
+
+              </div>
+
+              {/* Divider */}
+              <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', marginBottom: 14 }} />
+
+              {/* Badges row */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <span style={{ fontSize: 10.5, color: 'rgba(240,240,243,0.38)', textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600, width: 52, flexShrink: 0 }}>Badges</span>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {BADGES.filter(b => b.earned).slice(0, 3).map(b => (
+                    <span key={b.id} style={{
+                      fontSize: 10.5, fontWeight: 600, color: b.color,
+                      background: `${b.color}14`,
+                      border: `1px solid ${b.color}2e`,
+                      borderRadius: 99, padding: '3px 9px',
+                    }}>
+                      {b.icon} {b.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tags row */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 10.5, color: 'rgba(240,240,243,0.38)', textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600, width: 52, flexShrink: 0 }}>Tags</span>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {['#ProductStrategy', '#Roadmapping', '#Agile', '#B2BSaaS', '#Stakeholders'].map(tag => (
+                    <span key={tag} style={{
+                      fontSize: 10.5, fontWeight: 500, color: 'rgba(240,240,243,0.50)',
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid rgba(255,255,255,0.07)',
+                      borderRadius: 99, padding: '3px 9px',
+                    }}>{tag}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* ── End Profile Header ── */}
+
           {/* OVERVIEW */}
           {activeNav === 'Overview' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
