@@ -5,9 +5,9 @@ import type { OKR } from "@/lib/types";
 
 const STATUS_CONFIG: Record<OKR['status'], { label: string; color: string }> = {
   pending:     { label: 'Pending',     color: '#6b7280' },
-  in_progress: { label: 'In Progress', color: '#f59e0b' },
-  complete:    { label: 'Complete',    color: '#22c55e' },
-  missed:      { label: 'Missed',      color: '#ef4444' },
+  in_progress: { label: 'In Progress', color: '#deaf49' },
+  complete:    { label: 'Complete',    color: '#02ba67' },
+  missed:      { label: 'Missed',      color: '#d44848' },
 };
 
 function OKRCard({ okr }: { okr: OKR }) {
@@ -23,7 +23,7 @@ function OKRCard({ okr }: { okr: OKR }) {
   return (
     <div style={{
       background: '#18181c',
-      border: `1px solid ${isDone ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.07)'}`,
+      border: `1px solid ${isDone ? 'rgba(2,186,103,0.25)' : 'rgba(255,255,255,0.07)'}`,
       borderRadius: 10, padding: '12px 14px',
       transition: 'border-color 300ms',
     }}>
@@ -39,8 +39,8 @@ function OKRCard({ okr }: { okr: OKR }) {
         </p>
         <span style={{
           fontSize: 9.5, fontWeight: 700, flexShrink: 0,
-          color: cfg.color, background: `${cfg.color}18`,
-          border: `1px solid ${cfg.color}33`,
+          color: cfg.color === '#6b7280' ? '#fff' : '#000000',
+          background: cfg.color,
           borderRadius: 5, padding: '2px 7px',
         }}>
           {cfg.label}
@@ -90,8 +90,8 @@ function OKRCard({ okr }: { okr: OKR }) {
               onClick={() => updateOKR(okr.id, Math.max(okr.progress, 10))}
               style={{
                 fontSize: 10, padding: '3px 9px', borderRadius: 5, cursor: 'pointer', fontWeight: 600,
-                background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)',
-                color: '#fbbf24',
+                background: '#deaf49', border: 'none',
+                color: '#000000',
               }}
             >
               Start
@@ -101,8 +101,8 @@ function OKRCard({ okr }: { okr: OKR }) {
             onClick={() => updateOKR(okr.id, 100)}
             style={{
               fontSize: 10, padding: '3px 9px', borderRadius: 5, cursor: 'pointer', fontWeight: 600,
-              background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)',
-              color: '#4ade80',
+              background: '#02ba67', border: 'none',
+              color: '#000000',
             }}
           >
             Mark Complete ✓

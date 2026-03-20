@@ -689,7 +689,7 @@ const INITIAL_KANBAN_COLUMNS: KanbanColumn[] = [
     ],
   },
   {
-    id: 'inprogress', label: 'In Progress', color: '#3b82f6',
+    id: 'inprogress', label: 'In Progress', color: '#49a5de',
     cards: [
       { id: 'k5', title: 'Engineering scope negotiation with Marcus', tag: 'Eng', assignee: 'M', priority: 'high', notes: '', linkedOkr: 'okr1' },
       { id: 'k6', title: 'CEO options brief — draft', tag: 'Executive', assignee: 'Y', priority: 'high', notes: '', linkedOkr: 'okr4' },
@@ -697,14 +697,14 @@ const INITIAL_KANBAN_COLUMNS: KanbanColumn[] = [
     ],
   },
   {
-    id: 'review', label: 'Review', color: '#f59e0b',
+    id: 'review', label: 'Review', color: '#deaf49',
     cards: [
       { id: 'k8', title: 'Revised Q3 scope document v2', tag: 'Product', assignee: 'Y', priority: 'high', notes: '', linkedOkr: 'okr1' },
       { id: 'k9', title: 'Sales commitment risk assessment', tag: 'Sales', assignee: 'T', priority: 'med', notes: '', linkedOkr: 'okr2' },
     ],
   },
   {
-    id: 'done', label: 'Done', color: '#22c55e',
+    id: 'done', label: 'Done', color: '#02ba67',
     cards: [
       { id: 'k10', title: 'Stakeholder 1:1 schedule', tag: 'Process', assignee: 'Y', priority: 'med', notes: '' },
       { id: 'k11', title: 'Initial roadmap audit', tag: 'Strategy', assignee: 'Y', priority: 'low', notes: '' },
@@ -712,13 +712,13 @@ const INITIAL_KANBAN_COLUMNS: KanbanColumn[] = [
   },
 ];
 
-const PRIORITY_COLORS = { high: '#f87171', med: '#fbbf24', low: '#6b7280' };
-const PRIORITY_BG    = { high: 'rgba(248,113,113,0.12)', med: 'rgba(251,191,36,0.12)', low: 'rgba(107,114,128,0.12)' };
+const PRIORITY_COLORS = { high: '#d44848', med: '#deaf49', low: '#6b7280' };
+const PRIORITY_BG    = { high: '#d44848', med: '#deaf49', low: 'rgba(107,114,128,0.12)' };
 const ASSIGNEE_COLORS: Record<string, string> = { Y: '#147b58', M: '#0891b2', S: '#6b7280', P: '#22d3ee', T: '#d97706', E: '#059669' };
 const ASSIGNEE_LABELS: Record<string, string> = { Y: 'You', M: 'Marcus', S: 'Sarah', P: 'Priya', T: 'Tom', E: 'Elena' };
 const TAG_COLORS: Record<string, string> = {
-  Sales: '#d97706', Eng: '#0891b2', Research: '#22d3ee', Strategy: '#147b58',
-  Executive: '#059669', Product: '#34d399', Process: '#6b7280', UX: '#147b58', Docs: '#94a3b8',
+  Sales: '#deaf49', Eng: '#49a5de', Research: '#49a5de', Strategy: '#02ba67',
+  Executive: '#02ba67', Product: '#02ba67', Process: '#6b7280', UX: '#02ba67', Docs: '#9ca3af',
 };
 
 /* ── PROJECT SUB-TAB ICONS ──────────────────────────────────────────────────── */
@@ -864,18 +864,18 @@ function KanbanBoard() {
   const totalCards = columns.reduce((s, c) => s + c.cards.length, 0);
   const doneCount  = columns.find(c => c.id === 'done')?.cards.length ?? 0;
   const sprintPct  = totalCards > 0 ? Math.round((doneCount / totalCards) * 100) : 0;
-  const pColor     = sprintPct >= 70 ? '#22c55e' : sprintPct >= 40 ? '#3b82f6' : '#f59e0b';
+  const pColor     = sprintPct >= 70 ? '#02ba67' : sprintPct >= 40 ? '#49a5de' : '#deaf49';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* Header */}
       <div style={{ padding: '11px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
         <span style={{ fontSize: 13.5, fontWeight: 600, color: '#efefef' }}>Roadmap Reckoning — Sprint 3</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px', background: `${pColor}12`, border: `1px solid ${pColor}30`, borderRadius: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px', background: pColor, borderRadius: 20 }}>
           <div style={{ width: 52, height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
-            <div style={{ width: `${sprintPct}%`, height: '100%', background: pColor, borderRadius: 2, transition: 'width 400ms' }} />
+            <div style={{ width: `${sprintPct}%`, height: '100%', background: '#000000', borderRadius: 2, transition: 'width 400ms' }} />
           </div>
-          <span style={{ fontSize: 11, color: pColor, fontWeight: 700 }}>{sprintPct}%</span>
+          <span style={{ fontSize: 11, color: '#000000', fontWeight: 700 }}>{sprintPct}%</span>
         </div>
         <span style={{ fontSize: 11, color: '#afa39f' }}>{doneCount} / {totalCards} done</span>
         <div style={{ flex: 1 }} />
@@ -952,10 +952,10 @@ function KanbanBoard() {
                       </p>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 9.5, padding: '2px 6px', borderRadius: 5, background: `${tagColor}18`, color: tagColor, fontWeight: 600, border: `1px solid ${tagColor}28` }}>
+                          <span style={{ fontSize: 9.5, padding: '2px 6px', borderRadius: 5, background: tagColor, color: '#000000', fontWeight: 600 }}>
                             {card.tag}
                           </span>
-                          <span style={{ fontSize: 9.5, padding: '2px 6px', borderRadius: 5, fontWeight: 700, background: PRIORITY_BG[card.priority], color: PRIORITY_COLORS[card.priority] }}>
+                          <span style={{ fontSize: 9.5, padding: '2px 6px', borderRadius: 5, fontWeight: 700, background: PRIORITY_BG[card.priority], color: '#000000' }}>
                             {card.priority.toUpperCase()}
                           </span>
                         </div>

@@ -98,8 +98,8 @@ const FOLDERS = [
 ];
 
 const TYPE_COLORS: Record<FileItem['type'], string> = {
-  pdf: '#f87171', fig: '#a78bfa', xlsx: '#34d399',
-  docx: '#60a5fa', pptx: '#fb923c', folder: '#fbbf24',
+  pdf: '#d44848', fig: '#bb76d6', xlsx: '#02ba67',
+  docx: '#49a5de', pptx: '#db966b', folder: '#deaf49',
 };
 
 const OWNER_COLORS: Record<string, string> = {
@@ -267,8 +267,8 @@ export function VaultScreen() {
                         <FileIcon color={TYPE_COLORS[file.type]} size={32} />
                         <span style={{
                           fontSize: 9, fontWeight: 700, textTransform: 'uppercase',
-                          color: TYPE_COLORS[file.type],
-                          background: `${TYPE_COLORS[file.type]}18`,
+                          color: '#000000',
+                          background: TYPE_COLORS[file.type],
                           padding: '2px 6px', borderRadius: 5, letterSpacing: '0.05em',
                         }}>
                           {file.type}
@@ -342,7 +342,7 @@ export function VaultScreen() {
                         <td style={{ padding: '10px 10px' }}>
                           <span style={{
                             fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-                            color: TYPE_COLORS[file.type], background: `${TYPE_COLORS[file.type]}18`,
+                            color: '#000000', background: TYPE_COLORS[file.type],
                             padding: '2px 6px', borderRadius: 5,
                           }}>{file.type}</span>
                         </td>

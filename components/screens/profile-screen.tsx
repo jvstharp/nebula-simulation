@@ -11,7 +11,7 @@ const T = {
   muted:      '#afa39f',
   border:     'rgba(255,255,255,0.04)',
   primary:    '#147b58',
-  yellow:     '#DCC377',
+  yellow:     '#deaf49',
   success:    '#28c840',
   shadow1:    '0 1px 2px rgba(0,0,0,0.6)',
 } as const;
@@ -48,19 +48,19 @@ function SectionHdr({ title, action, onAction }: { title: string; action?: strin
 
 /* ── Data ───────────────────────────────────────────────────────────────────── */
 const BADGES = [
-  { id: 1, label: 'Strategic Thinker', icon: '🧠', color: '#818cf8', earned: true,  desc: 'Demonstrated multi-step strategic reasoning in 2+ sessions' },
-  { id: 2, label: 'Fast Executor',     icon: '⚡', color: '#fbbf24', earned: true,  desc: 'Resolved Tier 3 chaos event within 10 minutes' },
-  { id: 3, label: 'Stakeholder Master',icon: '🤝', color: '#34d399', earned: true,  desc: 'Maintained avg trust score above 0.75 throughout session' },
-  { id: 4, label: 'Clear Communicator',icon: '💬', color: '#60a5fa', earned: true,  desc: 'Communication score above 80 in two consecutive sessions' },
-  { id: 5, label: 'Crisis Manager',    icon: '🔥', color: '#f87171', earned: true,  desc: 'Successfully navigated all three chaos tiers' },
-  { id: 6, label: 'Team Builder',      icon: '👥', color: '#fb923c', earned: false, desc: 'Engage all 5 characters with positive outcomes' },
-  { id: 7, label: 'Data Driven',       icon: '📊', color: '#2dd4bf', earned: false, desc: 'Reference metrics in 80% of decisions' },
-  { id: 8, label: 'Consensus Builder', icon: '🎯', color: '#a78bfa', earned: false, desc: 'Achieve full stakeholder alignment in a single session' },
+  { id: 1, label: 'Strategic Thinker', icon: '🧠', color: '#bb76d6', earned: true,  desc: 'Demonstrated multi-step strategic reasoning in 2+ sessions' },
+  { id: 2, label: 'Fast Executor',     icon: '⚡', color: '#deaf49', earned: true,  desc: 'Resolved Tier 3 chaos event within 10 minutes' },
+  { id: 3, label: 'Stakeholder Master',icon: '🤝', color: '#02ba67', earned: true,  desc: 'Maintained avg trust score above 0.75 throughout session' },
+  { id: 4, label: 'Clear Communicator',icon: '💬', color: '#49a5de', earned: true,  desc: 'Communication score above 80 in two consecutive sessions' },
+  { id: 5, label: 'Crisis Manager',    icon: '🔥', color: '#d44848', earned: true,  desc: 'Successfully navigated all three chaos tiers' },
+  { id: 6, label: 'Team Builder',      icon: '👥', color: '#db966b', earned: false, desc: 'Engage all 5 characters with positive outcomes' },
+  { id: 7, label: 'Data Driven',       icon: '📊', color: '#49a5de', earned: false, desc: 'Reference metrics in 80% of decisions' },
+  { id: 8, label: 'Consensus Builder', icon: '🎯', color: '#bb76d6', earned: false, desc: 'Achieve full stakeholder alignment in a single session' },
 ];
 
 const CERTIFICATES = [
-  { id: 1, title: 'Roadmap Mastery',           session: 'Session 1', date: 'Jan 14, 2026', score: 84, color: '#818cf8', verificationId: 'NEB-2026-0114-MC01' },
-  { id: 2, title: 'Stakeholder Alignment Pro', session: 'Session 2', date: 'Feb 22, 2026', score: 91, color: '#34d399', verificationId: 'NEB-2026-0222-MC02' },
+  { id: 1, title: 'Roadmap Mastery',           session: 'Session 1', date: 'Jan 14, 2026', score: 84, color: '#bb76d6', verificationId: 'NEB-2026-0114-MC01' },
+  { id: 2, title: 'Stakeholder Alignment Pro', session: 'Session 2', date: 'Feb 22, 2026', score: 91, color: '#02ba67', verificationId: 'NEB-2026-0222-MC02' },
 ];
 
 const SESSIONS = [
@@ -70,12 +70,12 @@ const SESSIONS = [
 ];
 
 const SKILL_SCORES = [
-  { label: 'Communication',       score: 84, color: '#60a5fa' },
-  { label: 'Strategic Thinking',  score: 79, color: '#818cf8' },
-  { label: 'Stakeholder Mgmt',    score: 88, color: '#34d399' },
-  { label: 'Execution Speed',     score: 65, color: '#fbbf24' },
-  { label: 'Conflict Resolution', score: 72, color: '#fb923c' },
-  { label: 'Prioritisation',      score: 77, color: '#f87171' },
+  { label: 'Communication',       score: 84, color: '#49a5de' },
+  { label: 'Strategic Thinking',  score: 79, color: '#bb76d6' },
+  { label: 'Stakeholder Mgmt',    score: 88, color: '#02ba67' },
+  { label: 'Execution Speed',     score: 65, color: '#deaf49' },
+  { label: 'Conflict Resolution', score: 72, color: '#db966b' },
+  { label: 'Prioritisation',      score: 77, color: '#d44848' },
 ];
 
 const EXPERIENCE = [
@@ -128,9 +128,9 @@ const EDUCATION = [
 
 const NEBULA_STATS = [
   { label: 'Immersion Score',      value: '87',   suffix: '/ 100', color: T.primary,  icon: '⚡', desc: 'Overall platform performance' },
-  { label: 'Avg Session Score',    value: '87.5', suffix: 'pts',   color: '#60a5fa',  icon: '📈', desc: 'Across 2 completed sessions' },
-  { label: 'Chaos Response',       value: 'A−',   suffix: '',      color: '#fbbf24',  icon: '🔥', desc: 'How fast you handle crises' },
-  { label: 'Stakeholder Trust',    value: '0.81', suffix: 'avg',   color: '#34d399',  icon: '🤝', desc: 'Average colleague trust score' },
+  { label: 'Avg Session Score',    value: '87.5', suffix: 'pts',   color: '#49a5de',  icon: '📈', desc: 'Across 2 completed sessions' },
+  { label: 'Chaos Response',       value: 'A−',   suffix: '',      color: '#deaf49',  icon: '🔥', desc: 'How fast you handle crises' },
+  { label: 'Stakeholder Trust',    value: '0.81', suffix: 'avg',   color: '#02ba67',  icon: '🤝', desc: 'Average colleague trust score' },
 ];
 
 const NAV_ITEMS = ['Overview', 'Badges', 'Certificates', 'Records'];
@@ -152,111 +152,24 @@ export function ProfileScreen() {
       maxWidth={1100}
     >
       {/* Body */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <>
 
-        {/* ── Sidebar ── */}
-        <div style={{
-          width: 280, flexShrink: 0,
-          background: 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)',
-          borderRight: `1px solid ${T.border}`,
-          display: 'flex', flexDirection: 'column',
-          overflow: 'hidden',
-        }}>
-          {/* Profile hero */}
-          <div style={{
-            padding: '28px 24px 22px', textAlign: 'center',
-            borderBottom: `1px solid ${T.border}`,
-          }}>
-            <div style={{
-              width: 72, height: 72, borderRadius: '50%', margin: '0 auto 14px',
-              background: 'linear-gradient(145deg, #c97b50, #7b3a1e)',
-              border: `3px solid rgba(20,123,88,0.35)`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 0 20px rgba(20,123,88,0.18)',
-            }}>
-              <svg width="46" height="46" viewBox="0 0 46 46" fill="none">
-                <ellipse cx="23" cy="18" rx="9"  ry="10" fill="rgba(255,255,255,0.85)" />
-                <ellipse cx="23" cy="40" rx="15" ry="11" fill="rgba(255,255,255,0.85)" />
-                <ellipse cx="23" cy="12" rx="10" ry="7"  fill="#2a1a0e" />
-                <ellipse cx="12" cy="19" rx="2.8" ry="8" fill="#2a1a0e" />
-                <ellipse cx="34" cy="19" rx="2.8" ry="8" fill="#2a1a0e" />
-              </svg>
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 3 }}>{displayName}</div>
-            <div style={{ fontSize: 12, color: T.text, marginBottom: 2, opacity: 0.8 }}>Senior Product Manager</div>
-            <div style={{ fontSize: 11, color: T.muted, marginBottom: 10 }}>Nexus Technologies</div>
-            <div style={{ fontSize: 11, color: 'rgba(175,163,159,0.55)', marginBottom: 4 }}>📍 San Francisco, CA</div>
-            <div style={{ fontSize: 11, color: 'rgba(175,163,159,0.55)', marginBottom: 10 }}>🏭 B2B SaaS · Product Management</div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 6 }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 15, fontWeight: 800, color: T.primary }}>312</div>
-                <div style={{ fontSize: 10, color: T.muted }}>connections</div>
-              </div>
-              <div style={{ width: 1, height: 24, background: T.border }} />
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 15, fontWeight: 800, color: '#818cf8' }}>87</div>
-                <div style={{ fontSize: 10, color: T.muted }}>immersion</div>
-              </div>
-            </div>
-            <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: T.success }} />
-              <span style={{ fontSize: 11, color: T.success, fontWeight: 600 }}>Active Session</span>
-            </div>
-          </div>
+        {/* ── Main content ── */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px 36px', background: '#161616' }}>
 
-          {/* Nav */}
-          <nav style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {NAV_ITEMS.map(item => {
-              const active = activeNav === item;
-              return (
-                <button
-                  key={item}
-                  onClick={() => setActiveNav(item)}
-                  style={{
-                    display: 'block', width: '100%', textAlign: 'left',
-                    padding: '9px 12px', fontSize: 13, borderRadius: 8,
-                    color: active ? T.text : T.muted,
-                    background: active ? 'rgba(255,255,255,0.04)' : 'transparent',
-                    borderTop: 'none', borderRight: 'none', borderBottom: 'none',
-                    cursor: 'pointer',
-                    fontWeight: active ? 600 : 400,
-                    borderLeft: `2px solid ${active ? T.primary : 'transparent'}`,
-                    fontFamily: 'inherit',
-                    transition: 'color 120ms, background 120ms',
-                  }}
-                >
-                  {item}
-                </button>
-              );
-            })}
-          </nav>
-
-          <div style={{ flex: 1 }} />
-
-          {/* Credits */}
-          <div style={{ padding: '16px 20px 12px', borderTop: `1px solid ${T.border}` }}>
-            <div style={{ fontSize: 11, color: T.muted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
-              Credits Balance
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 22, fontWeight: 800, color: T.yellow }}>{user?.credits ?? 2450}</span>
-              <span style={{ fontSize: 11, color: 'rgba(175,163,159,0.45)' }}>NEB</span>
-            </div>
-          </div>
-
-          {/* Account actions */}
-          <div style={{ padding: '0 12px 16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {/* ── Action strip ── */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginBottom: 16 }}>
             <button
               onClick={() => setScreen('desktop')}
               style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                padding: '8px 12px', borderRadius: 8, border: 'none',
-                background: 'transparent', color: T.muted, fontSize: 12.5,
-                cursor: 'pointer', fontFamily: 'inherit', width: '100%', textAlign: 'left',
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '6px 12px', borderRadius: 8, border: 'none',
+                background: 'rgba(255,255,255,0.04)', color: 'rgba(175,163,159,0.7)',
+                fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
                 transition: 'color 120ms, background 120ms',
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = T.text; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = T.muted; }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.07)'; e.currentTarget.style.color = '#efefef'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = 'rgba(175,163,159,0.7)'; }}
             >
               <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ flexShrink: 0 }}>
                 <rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.1" />
@@ -269,14 +182,14 @@ export function ProfileScreen() {
             <button
               onClick={() => setScreen('login')}
               style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                padding: '8px 12px', borderRadius: 8, border: 'none',
-                background: 'transparent', color: 'rgba(248,113,113,0.7)', fontSize: 12.5,
-                cursor: 'pointer', fontFamily: 'inherit', width: '100%', textAlign: 'left',
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '6px 12px', borderRadius: 8, border: 'none',
+                background: 'rgba(212,72,72,0.06)', color: 'rgba(212,72,72,0.7)',
+                fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
                 transition: 'color 120ms, background 120ms',
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(248,113,113,0.06)'; e.currentTarget.style.color = '#f87171'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(248,113,113,0.7)'; }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(212,72,72,0.10)'; e.currentTarget.style.color = '#d44848'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(212,72,72,0.06)'; e.currentTarget.style.color = 'rgba(212,72,72,0.7)'; }}
             >
               <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ flexShrink: 0 }}>
                 <path d="M8.5 6.5H1.5M5 4l-3 2.5L5 9" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
@@ -285,13 +198,9 @@ export function ProfileScreen() {
               Log out
             </button>
           </div>
-        </div>
-
-        {/* ── Main content ── */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px 36px', background: '#161616' }}>
 
           {/* ── Profile Header: Two-card hero ─────────────────────────── */}
-          <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 14, marginBottom: 28 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 14, marginBottom: 16 }}>
 
             {/* ── Left: Identity card ── */}
             <div style={{
@@ -326,13 +235,20 @@ export function ProfileScreen() {
               </div>
               {/* Premium badge */}
               <span style={{
-                fontSize: 11.5, fontWeight: 600, color: T.primary,
-                background: 'rgba(20,123,88,0.12)',
-                border: '1px solid rgba(20,123,88,0.28)',
+                fontSize: 11.5, fontWeight: 600, color: '#000000',
+                background: '#02ba67',
                 borderRadius: 99, padding: '4px 14px',
               }}>
                 Premium User
               </span>
+              {/* Credits */}
+              <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.06)', width: '100%', textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: 'rgba(175,163,159,0.5)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Credits</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                  <span style={{ fontSize: 20, fontWeight: 800, color: '#deaf49' }}>{user?.credits ?? 2450}</span>
+                  <span style={{ fontSize: 11, color: 'rgba(175,163,159,0.45)' }}>NEB</span>
+                </div>
+              </div>
             </div>
 
             {/* ── Right: Bio & details card ── */}
@@ -383,12 +299,11 @@ export function ProfileScreen() {
                   <div style={{ fontSize: 10.5, color: 'rgba(240,240,243,0.38)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4, fontWeight: 600 }}>Availability</div>
                   <span style={{
                     display: 'inline-flex', alignItems: 'center', gap: 5,
-                    fontSize: 11, fontWeight: 600, color: T.success,
-                    background: 'rgba(40,200,64,0.10)',
-                    border: '1px solid rgba(40,200,64,0.22)',
+                    fontSize: 11, fontWeight: 600, color: '#000000',
+                    background: '#02ba67',
                     borderRadius: 99, padding: '3px 10px',
                   }}>
-                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: T.success, flexShrink: 0, display: 'inline-block' }} />
+                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#000000', flexShrink: 0, display: 'inline-block' }} />
                     Available for Simulation
                   </span>
                 </div>
@@ -404,9 +319,8 @@ export function ProfileScreen() {
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {BADGES.filter(b => b.earned).slice(0, 3).map(b => (
                     <span key={b.id} style={{
-                      fontSize: 10.5, fontWeight: 600, color: b.color,
-                      background: `${b.color}14`,
-                      border: `1px solid ${b.color}2e`,
+                      fontSize: 10.5, fontWeight: 600, color: '#000000',
+                      background: b.color,
                       borderRadius: 99, padding: '3px 9px',
                     }}>
                       {b.icon} {b.label}
@@ -432,6 +346,19 @@ export function ProfileScreen() {
             </div>
           </div>
           {/* ── End Profile Header ── */}
+
+          {/* ── Tab bar ── */}
+          <div className="tab-bar" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: 28 }}>
+            {NAV_ITEMS.map(item => (
+              <button
+                key={item}
+                className={`tab-item${activeNav === item ? ' active' : ''}`}
+                onClick={() => setActiveNav(item)}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
 
           {/* OVERVIEW */}
           {activeNav === 'Overview' && (
@@ -549,8 +476,8 @@ export function ProfileScreen() {
                               {exp.current && (
                                 <span style={{
                                   marginLeft: 8, fontSize: 9, fontWeight: 700,
-                                  color: T.primary, background: 'rgba(20,123,88,0.12)',
-                                  border: '1px solid rgba(20,123,88,0.25)', borderRadius: 4,
+                                  color: '#000000', background: '#02ba67',
+                                  borderRadius: 4,
                                   padding: '1px 6px', verticalAlign: 'middle', textTransform: 'uppercase', letterSpacing: '0.05em',
                                 }}>Current</span>
                               )}
@@ -600,14 +527,14 @@ export function ProfileScreen() {
                     <div key={badge.id} style={{ ...card, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
                       <div style={{
                         width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-                        background: `${badge.color}18`, border: `1px solid ${badge.color}30`,
+                        background: badge.color,
                         display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
                       }}>
                         {badge.icon}
                       </div>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 2 }}>{badge.label}</div>
-                        <div style={{ fontSize: 10, color: badge.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Earned</div>
+                        <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', background: badge.color, color: '#000000', borderRadius: 4, padding: '1px 6px' }}>Earned</span>
                         <div style={{ fontSize: 11, color: T.muted, marginTop: 4, lineHeight: 1.45 }}>{badge.desc}</div>
                       </div>
                     </div>
@@ -637,7 +564,7 @@ export function ProfileScreen() {
                     <div key={cert.id} style={{ ...card, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
                       <div style={{
                         width: 40, height: 40, borderRadius: 10, flexShrink: 0,
-                        background: `${cert.color}18`, border: `1px solid ${cert.color}30`,
+                        background: cert.color,
                         display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
                       }}>
                         🎓
@@ -650,8 +577,7 @@ export function ProfileScreen() {
                       </div>
                       <div style={{
                         padding: '3px 10px', borderRadius: 20, fontSize: 11, flexShrink: 0,
-                        background: `${cert.color}18`, color: cert.color, fontWeight: 700,
-                        border: `1px solid ${cert.color}30`,
+                        background: cert.color, color: '#000000', fontWeight: 700,
                       }}>
                         {cert.score}/100
                       </div>
@@ -680,9 +606,9 @@ export function ProfileScreen() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
                   {[
                     { label: 'Credits',       value: user?.credits ?? 2450, color: T.yellow,  suffix: 'NEB'   },
-                    { label: 'Badges Earned', value: 5,                     color: '#a78bfa', suffix: '/ 8'   },
-                    { label: 'Sessions',      value: 3,                     color: '#60a5fa', suffix: 'total' },
-                    { label: 'Certificates',  value: 2,                     color: '#34d399', suffix: 'issued'},
+                    { label: 'Badges Earned', value: 5,                     color: '#bb76d6', suffix: '/ 8'   },
+                    { label: 'Sessions',      value: 3,                     color: '#49a5de', suffix: 'total' },
+                    { label: 'Certificates',  value: 2,                     color: '#02ba67', suffix: 'issued'},
                   ].map(stat => (
                     <div key={stat.label} style={{ ...card, padding: '14px 16px' }}>
                       <div style={{ fontSize: 10, color: T.muted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
@@ -717,8 +643,7 @@ export function ProfileScreen() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{
                         width: 40, height: 40, borderRadius: 12,
-                        background:  badge.earned ? `${badge.color}18` : T.border,
-                        border:      badge.earned ? `1px solid ${badge.color}30` : `1px solid ${T.border}`,
+                        background:  badge.earned ? badge.color : T.border,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontSize: 20,
                       }}>
@@ -729,7 +654,7 @@ export function ProfileScreen() {
                           {badge.label}
                         </div>
                         {badge.earned && (
-                          <div style={{ fontSize: 10, color: badge.color, fontWeight: 600 }}>Earned</div>
+                          <span style={{ fontSize: 10, fontWeight: 600, background: badge.color, color: '#000000', borderRadius: 4, padding: '1px 6px' }}>Earned</span>
                         )}
                       </div>
                     </div>
@@ -751,7 +676,7 @@ export function ProfileScreen() {
                 <div key={cert.id} style={{ ...card, padding: '20px 24px', display: 'flex', alignItems: 'center', gap: 20 }}>
                   <div style={{
                     width: 56, height: 56, borderRadius: 14,
-                    background: `${cert.color}18`, border: `1px solid ${cert.color}35`,
+                    background: cert.color,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 26, flexShrink: 0,
                   }}>
@@ -765,8 +690,7 @@ export function ProfileScreen() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{
                         padding: '3px 10px', borderRadius: 20, fontSize: 11,
-                        background: `${cert.color}18`, color: cert.color, fontWeight: 700,
-                        border: `1px solid ${cert.color}30`,
+                        background: cert.color, color: '#000000', fontWeight: 700,
                       }}>
                         Score: {cert.score}/100
                       </div>
@@ -776,7 +700,7 @@ export function ProfileScreen() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button style={{ ...card, padding: '7px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600, color: cert.color, cursor: 'pointer', border: `1px solid ${cert.color}30`, fontFamily: 'inherit' }}>
+                    <button style={{ ...card, padding: '7px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#000000', background: cert.color, cursor: 'pointer', border: 'none', fontFamily: 'inherit' }}>
                       View
                     </button>
                     <button style={{ ...card, padding: '7px 16px', borderRadius: 8, fontSize: 12, fontWeight: 500, color: T.muted, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -799,11 +723,10 @@ export function ProfileScreen() {
                 <div key={session.id} style={{ ...card, padding: '18px 22px', display: 'flex', alignItems: 'center', gap: 20 }}>
                   <div style={{
                     width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-                    background: session.status === 'active' ? 'rgba(40,200,64,0.12)' : 'rgba(96,165,250,0.10)',
-                    border: `1px solid ${session.status === 'active' ? 'rgba(40,200,64,0.28)' : 'rgba(96,165,250,0.22)'}`,
+                    background: session.status === 'active' ? '#02ba67' : '#49a5de',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 11, fontWeight: 800,
-                    color: session.status === 'active' ? T.success : '#60a5fa',
+                    color: '#000000',
                   }}>
                     S{session.id}
                   </div>
@@ -815,7 +738,7 @@ export function ProfileScreen() {
                   </div>
                   {session.score !== null ? (
                     <div style={{ textAlign: 'right', minWidth: 44 }}>
-                      <div style={{ fontSize: 24, fontWeight: 800, color: session.score >= 85 ? '#34d399' : '#60a5fa', lineHeight: 1 }}>
+                      <div style={{ fontSize: 24, fontWeight: 800, color: session.score >= 85 ? '#02ba67' : '#49a5de', lineHeight: 1 }}>
                         {session.score}
                       </div>
                       <div style={{ fontSize: 10, color: 'rgba(175,163,159,0.45)', marginTop: 2 }}>/100</div>
@@ -823,8 +746,8 @@ export function ProfileScreen() {
                   ) : (
                     <div style={{
                       padding: '4px 12px', borderRadius: 20,
-                      background: 'rgba(40,200,64,0.10)', border: '1px solid rgba(40,200,64,0.22)',
-                      fontSize: 11, color: T.success, fontWeight: 700,
+                      background: '#02ba67',
+                      fontSize: 11, color: '#000000', fontWeight: 700,
                     }}>
                       In Progress
                     </div>
@@ -838,7 +761,7 @@ export function ProfileScreen() {
           )}
 
         </div>
-      </div>
+      </>
     </AppWindow>
   );
 }

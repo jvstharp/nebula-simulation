@@ -141,7 +141,7 @@ export function ProgressScreen() {
                       <div className="relative h-1.5">
                         {/* Benchmark marker */}
                         <div className="absolute top-0 h-full w-px bg-white/20 z-10" style={{ left: '80%' }} />
-                        <Progress value={score} color={score >= 75 ? '#22c55e' : score >= 55 ? '#f59e0b' : '#ef4444'} />
+                        <Progress value={score} color={score >= 75 ? '#02ba67' : score >= 55 ? '#deaf49' : '#d44848'} />
                       </div>
                     </div>
                   ))}
@@ -168,7 +168,7 @@ export function ProgressScreen() {
                       <Avatar name={char.name} color={char.color} size="sm" />
                       <div className="flex-1">
                         <div className="text-xs text-white/65 mb-1">{char.name}</div>
-                        <Progress value={char.trust * 100} color={char.trust >= 0.7 ? '#22c55e' : char.trust >= 0.45 ? '#f59e0b' : '#ef4444'} />
+                        <Progress value={char.trust * 100} color={char.trust >= 0.7 ? '#02ba67' : char.trust >= 0.45 ? '#deaf49' : '#d44848'} />
                       </div>
                       <span className="text-xs text-white/30 w-8 text-right">{Math.round(char.trust * 100)}%</span>
                     </div>

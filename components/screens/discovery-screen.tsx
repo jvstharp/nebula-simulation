@@ -9,9 +9,9 @@ const G = '#147b58';
 const G_BG  = (a: number) => `rgba(20,123,88,${a})`;
 type AnyItem = { id: string; [key: string]: unknown };
 const LEVEL_COLOR: Record<string, string> = {
-  Beginner:     '#22c55e',
-  Intermediate: '#f59e0b',
-  Advanced:     '#f87171',
+  Beginner:     '#02ba67',
+  Intermediate: '#deaf49',
+  Advanced:     '#d44848',
 };
 
 // ── Nav ────────────────────────────────────────────────────────────────────
@@ -76,11 +76,11 @@ function Tag({ label }: { label: string }) {
 }
 
 function DifficultyBadge({ level }: { level: string }) {
-  const c = level === 'Easy' ? '#22c55e' : level === 'Medium' ? '#f59e0b' : '#f87171';
+  const c = level === 'Easy' ? '#02ba67' : level === 'Medium' ? '#deaf49' : '#d44848';
   return (
     <span style={{
       fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
-      background: `${c}18`, color: c, border: `1px solid ${c}40`,
+      background: c, color: '#000000',
     }}>{level}</span>
   );
 }
@@ -90,7 +90,7 @@ function LevelBadge({ level }: { level: string }) {
   return (
     <span style={{
       fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
-      background: `${c}18`, color: c, border: `1px solid ${c}40`,
+      background: c, color: '#000000',
     }}>{level}</span>
   );
 }
@@ -325,9 +325,9 @@ function DetailPanel({ item, type, onClose, onAction, actionState }: {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                   <LevelBadge level={s.level} />
-                  <span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: 'rgba(167,139,250,0.10)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.22)', letterSpacing: '0.04em' }}>MINI SESSION</span>
+                  <span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#bb76d6', color: '#000000', letterSpacing: '0.04em' }}>MINI SESSION</span>
                   {s.popular && (
-                    <span style={{ fontSize: 10, fontWeight: 700, color: G, background: G_BG(0.12), border: `1px solid ${G_BG(0.28)}`, padding: '2px 8px', borderRadius: 4 }}>Popular</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: '#000000', background: '#02ba67', padding: '2px 8px', borderRadius: 4 }}>Popular</span>
                   )}
                 </div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: '#f0f0f3', lineHeight: 1.35 }}>{s.name}</div>
@@ -694,7 +694,7 @@ function SkillsView({ search, onSelect, enrolled }: { search: string; onSelect: 
           )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
             <LevelBadge level={s.level} />
-            <span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: 'rgba(167,139,250,0.10)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.22)', letterSpacing: '0.04em' }}>MINI SESSION</span>
+            <span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#bb76d6', color: '#000000', letterSpacing: '0.04em' }}>MINI SESSION</span>
           </div>
           <div style={{ fontSize: 13, fontWeight: 600, color: '#f0f0f3', lineHeight: 1.35, marginBottom: 8 }}>{s.name}</div>
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 12 }}>{s.modules} modules · {s.moduleMinutes} min each · ~{s.modules * s.moduleMinutes} min total</div>

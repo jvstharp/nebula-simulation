@@ -43,10 +43,10 @@ function PortfolioCaseStudyPanel() {
 
   if (portfolio.status === 'failed') {
     return (
-      <div style={{ margin: '0 24px 24px', borderRadius: 14, border: '1px solid rgba(239,68,68,0.2)', background: 'rgba(239,68,68,0.05)', padding: '20px' }}>
-        <p style={{ fontSize: 14, color: '#f87171', margin: 0 }}>
+      <div style={{ margin: '0 24px 24px', borderRadius: 14, border: '1px solid rgba(212,72,72,0.2)', background: 'rgba(212,72,72,0.05)', padding: '20px' }}>
+        <p style={{ fontSize: 14, color: '#d44848', margin: 0 }}>
           Case study generation failed.{' '}
-          <button onClick={() => {}} style={{ background: 'none', border: 'none', color: '#f87171', textDecoration: 'underline', cursor: 'pointer', padding: 0, fontSize: 14 }}>Retry</button>
+          <button onClick={() => {}} style={{ background: 'none', border: 'none', color: '#d44848', textDecoration: 'underline', cursor: 'pointer', padding: 0, fontSize: 14 }}>Retry</button>
         </p>
       </div>
     );
@@ -140,7 +140,7 @@ function PortfolioCaseStudyPanel() {
                     <div style={{ height: '100%', borderRadius: 3, background: '#147b58', width: `${s.score}%` }} />
                   </div>
                   <span style={{ fontSize: 12, color: 'rgba(240,240,243,0.40)', width: 32, textAlign: 'right' }}>{s.score}</span>
-                  <span style={{ fontSize: 12, color: '#22c55e', width: 40, textAlign: 'right' }}>+{s.baselineDelta}</span>
+                  <span style={{ fontSize: 12, color: '#02ba67', width: 40, textAlign: 'right' }}>+{s.baselineDelta}</span>
                 </div>
               ))}
             </div>
@@ -214,7 +214,7 @@ export function ReplayScreen() {
                 <div style={{ fontSize: 10, color: 'rgba(240,240,243,0.30)', marginTop: 3, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Session Score</div>
               </div>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 24, fontWeight: 800, color: '#34d399', lineHeight: 1 }}>{rri}%</div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: '#02ba67', lineHeight: 1 }}>{rri}%</div>
                 <div style={{ fontSize: 10, color: 'rgba(240,240,243,0.30)', marginTop: 3, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Role Readiness</div>
               </div>
               <button
@@ -279,8 +279,8 @@ export function ReplayScreen() {
                           <span style={{ fontSize: 11, fontFamily: 'monospace', color: 'rgba(240,240,243,0.25)' }}>{node.time}</span>
                           <span style={{
                             fontSize: 10.5, padding: '2px 6px', borderRadius: 99,
-                            background: node.impact === 'critical' ? 'rgba(239,68,68,0.15)' : node.impact === 'high' ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.07)',
-                            color: node.impact === 'critical' ? '#f87171' : node.impact === 'high' ? '#f59e0b' : 'rgba(240,240,243,0.45)',
+                            background: node.impact === 'critical' ? '#d44848' : node.impact === 'high' ? '#deaf49' : 'rgba(255,255,255,0.07)',
+                            color: node.impact === 'critical' ? '#000000' : node.impact === 'high' ? '#000000' : 'rgba(240,240,243,0.45)',
                           }}>{node.impact}</span>
                         </div>
                         <p style={{ fontSize: 11.5, color: 'rgba(240,240,243,0.65)', lineHeight: 1.4, margin: 0 }}>{node.title}</p>
@@ -318,7 +318,7 @@ export function ReplayScreen() {
                         {/* Impact card */}
                         <div style={{ background: '#18181c', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '14px 16px' }}>
                           <div style={{ fontSize: 10, color: 'rgba(240,240,243,0.30)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Impact</div>
-                          <div style={{ fontSize: 14, fontWeight: 500, textTransform: 'capitalize', color: selectedNode.impact === 'critical' ? '#f87171' : selectedNode.impact === 'high' ? '#f59e0b' : 'rgba(240,240,243,0.70)' }}>{selectedNode.impact}</div>
+                          <div style={{ fontSize: 14, fontWeight: 500, textTransform: 'capitalize', color: selectedNode.impact === 'critical' ? '#d44848' : selectedNode.impact === 'high' ? '#deaf49' : 'rgba(240,240,243,0.70)' }}>{selectedNode.impact}</div>
                         </div>
                       </div>
                       <div style={{ background: '#18181c', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '16px' }}>
@@ -365,7 +365,7 @@ export function ReplayScreen() {
                   {/* RRI box */}
                   <div style={{ marginTop: 8, padding: 12, background: 'rgba(20,123,88,0.08)', border: '1px solid rgba(20,123,88,0.2)', borderRadius: 10 }}>
                     <div style={{ fontSize: 11.5, color: 'rgba(52,211,153,0.7)', marginBottom: 4 }}>Role Readiness Index</div>
-                    <div style={{ fontSize: 28, fontWeight: 800, color: '#34d399', lineHeight: 1 }}>{rri}%</div>
+                    <div style={{ fontSize: 28, fontWeight: 800, color: '#02ba67', lineHeight: 1 }}>{rri}%</div>
                     <p style={{ fontSize: 11.5, color: 'rgba(240,240,243,0.40)', marginTop: 4, marginBottom: 6 }}>vs Senior PM benchmark (100%)</p>
                     <InlineProgress value={rri} color="#147b58" />
                   </div>
