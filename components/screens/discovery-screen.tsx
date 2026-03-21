@@ -34,10 +34,10 @@ const COACHES = [
 ];
 
 const WORKPLACES = [
-  { id: 'w1', company: 'Dynamic AI',        industry: 'Technology',   type: 'Series B Startup', difficulty: 'Medium', rate: '$250/hr', roles: ['Senior PM', 'Head of Product'],       desc: 'A fast-growing AI tooling company building automation for enterprise workflows. Fast-paced, ambiguous, and technically demanding.', color: '#22d3ee' },
-  { id: 'w2', company: 'Founder Ventures',  industry: 'Consulting',   type: 'Boutique Firm',    difficulty: 'Hard',   rate: '$390/hr', roles: ['Strategy Consultant', 'Innovation Lead'], desc: 'A strategy consulting firm that works with Fortune 500 clients on transformation and growth. High stakes, client-facing, politically complex.', color: '#a78bfa' },
-  { id: 'w3', company: 'Alta Foods',        industry: 'FMCG',         type: 'Enterprise',       difficulty: 'Easy',   rate: '$150/hr', roles: ['Category PM', 'Brand Manager'],       desc: 'A consumer goods company launching products in competitive retail markets. Great for practising stakeholder alignment and long-horizon planning.', color: '#34d399' },
-  { id: 'w4', company: 'NovaTech Systems',  industry: 'B2B SaaS',     type: 'Scale-up',         difficulty: 'Hard',   rate: '$280/hr', roles: ['Platform PM', 'VP Product'],          desc: 'A 300-person SaaS company selling to enterprise IT teams. Complex procurement cycles, multiple personas, and a sprawling legacy platform.', color: '#60a5fa' },
+  { id: 'w1', company: 'Dynamic AI',        industry: 'Technology',   type: 'Series B Startup', difficulty: 'Medium', rate: '$250/hr', roles: ['Senior PM', 'Head of Product'],       desc: 'A fast-growing AI tooling company building automation for enterprise workflows. Fast-paced, ambiguous, and technically demanding.', color: '#22d3ee', image: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=800&q=80&fit=crop&auto=format' },
+  { id: 'w2', company: 'Founder Ventures',  industry: 'Consulting',   type: 'Boutique Firm',    difficulty: 'Hard',   rate: '$390/hr', roles: ['Strategy Consultant', 'Innovation Lead'], desc: 'A strategy consulting firm that works with Fortune 500 clients on transformation and growth. High stakes, client-facing, politically complex.', color: '#a78bfa', image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&q=80&fit=crop&auto=format' },
+  { id: 'w3', company: 'Alta Foods',        industry: 'FMCG',         type: 'Enterprise',       difficulty: 'Easy',   rate: '$150/hr', roles: ['Category PM', 'Brand Manager'],       desc: 'A consumer goods company launching products in competitive retail markets. Great for practising stakeholder alignment and long-horizon planning.', color: '#34d399', image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&q=80&fit=crop&auto=format' },
+  { id: 'w4', company: 'NovaTech Systems',  industry: 'B2B SaaS',     type: 'Scale-up',         difficulty: 'Hard',   rate: '$280/hr', roles: ['Platform PM', 'VP Product'],          desc: 'A 300-person SaaS company selling to enterprise IT teams. Complex procurement cycles, multiple personas, and a sprawling legacy platform.', color: '#60a5fa', image: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=800&q=80&fit=crop&auto=format' },
 ];
 
 const SKILLS = [
@@ -451,25 +451,9 @@ function HomeView({ onNav, onSelect }: { onNav: (id: string) => void; onSelect: 
           <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>Featured Workplaces</span>
           <button onClick={() => onNav('workplaces')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: G, fontFamily: 'inherit', fontWeight: 500 }}>See all →</button>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
           {WORKPLACES.slice(0, 2).map(w => (
-            <div key={w.id} style={{ ...cardStyle, padding: '14px', cursor: 'pointer' }}
-              onClick={() => onSelect(w, 'workplace')}
-              onMouseEnter={e => cardHoverIn(e.currentTarget)}
-              onMouseLeave={e => cardHoverOut(e.currentTarget)}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 8, background: `${w.color}22`, border: `1px solid ${w.color}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, color: w.color, flexShrink: 0 }}>{w.company[0]}</div>
-                <div>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, color: '#f0f0f3' }}>{w.company}</div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{w.industry}</div>
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <DifficultyBadge level={w.difficulty} />
-                <span style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.45)' }}>{w.rate}</span>
-              </div>
-            </div>
+            <WorkplaceCard key={w.id} w={w} onSelect={onSelect} compact />
           ))}
         </div>
       </div>
@@ -626,44 +610,84 @@ function CreditsView({ purchased, onPurchase }: { purchased: Set<string>; onPurc
   );
 }
 
+function WorkplaceCard({ w, onSelect, compact = false }: { w: typeof WORKPLACES[0]; onSelect: (item: AnyItem, type: string) => void; compact?: boolean }) {
+  return (
+    <div
+      style={{
+        ...cardStyle,
+        cursor: 'pointer',
+        display: 'flex',
+        flexDirection: 'column',
+        aspectRatio: '5/8',
+        overflow: 'hidden',
+        padding: 0,
+        borderRadius: 14,
+      }}
+      onClick={() => onSelect(w, 'workplace')}
+      onMouseEnter={e => cardHoverIn(e.currentTarget)}
+      onMouseLeave={e => cardHoverOut(e.currentTarget)}
+    >
+      {/* Square image */}
+      <div style={{ width: '100%', aspectRatio: '1/1', flexShrink: 0, position: 'relative', overflow: 'hidden' }}>
+        <img
+          src={w.image}
+          alt={w.company}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+        />
+        {/* Gradient overlay for legibility on image edges */}
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0, height: '40%',
+          background: 'linear-gradient(to top, rgba(10,10,14,0.72) 0%, transparent 100%)',
+          pointerEvents: 'none',
+        }} />
+        {/* Difficulty badge on image */}
+        <div style={{ position: 'absolute', top: 10, left: 10 }}>
+          <DifficultyBadge level={w.difficulty} />
+        </div>
+      </div>
+
+      {/* Details */}
+      <div style={{
+        flex: 1, padding: compact ? '10px 12px' : '12px 14px',
+        display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+        minHeight: 0,
+      }}>
+        <div>
+          <div style={{ fontSize: compact ? 12 : 13, fontWeight: 700, color: '#f0f0f3', marginBottom: 2, lineHeight: 1.3 }}>{w.company}</div>
+          <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.4)', marginBottom: compact ? 0 : 6 }}>{w.industry} · {w.type}</div>
+          {!compact && (
+            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.42)', lineHeight: 1.5, margin: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const }}>{w.desc}</p>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, gap: 4 }}>
+          <span style={{ fontSize: compact ? 11 : 11.5, fontWeight: 600, color: w.color }}>{w.rate}</span>
+          <span style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.3)' }}>{w.roles.length} roles</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WorkplacesView({ search, onSelect }: { search: string; onSelect: (item: AnyItem, type: string) => void }) {
   const filtered = useMemo(() => WORKPLACES.filter(w =>
     !search || w.company.toLowerCase().includes(search.toLowerCase()) || w.industry.toLowerCase().includes(search.toLowerCase())
   ), [search]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {filtered.map(w => (
-        <div key={w.id}
-          style={{ ...cardStyle, padding: '16px 18px', cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 16 }}
-          onClick={() => onSelect(w, 'workplace')}
-          onMouseEnter={e => cardHoverIn(e.currentTarget)}
-          onMouseLeave={e => cardHoverOut(e.currentTarget)}
-        >
-          <div style={{
-            width: 48, height: 48, borderRadius: 12, flexShrink: 0,
-            background: `${w.color}22`, border: `1px solid ${w.color}40`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 18, fontWeight: 800, color: w.color,
-          }}>{w.company[0]}</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
-              <span style={{ fontSize: 13.5, fontWeight: 600, color: '#f0f0f3' }}>{w.company}</span>
-              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{w.industry} · {w.type}</span>
-            </div>
-            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.55, margin: '0 0 10px' }}>{w.desc}</p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <DifficultyBadge level={w.difficulty} />
-              <span style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.35)' }}>{w.rate}</span>
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)' }}>·</span>
-              <span style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.35)' }}>{w.roles.length} roles available</span>
-            </div>
-          </div>
-        </div>
-      ))}
+    <div>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: 14,
+      }}>
+        {filtered.map(w => (
+          <WorkplaceCard key={w.id} w={w} onSelect={onSelect} />
+        ))}
+      </div>
       {filtered.length === 0 && (
         <div style={{ padding: '32px', textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>
-          No workplaces match "{search}"
+          No workplaces match &ldquo;{search}&rdquo;
         </div>
       )}
     </div>
