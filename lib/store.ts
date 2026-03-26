@@ -395,7 +395,27 @@ export const useAppStore = create<AppStore>((set, get) => ({
   onUserMoveCard: (card, toColId) => {
     const { characters, injectMessage, session } = get();
     if (!session || session.status !== 'active') return;
-    // Only react to teammate cards (not user's own)
+
+    // PM's own card moved to Done: relevant teammate acknowledges
+    if (card.assignee === 'Y' && toColId === 'done') {
+      // Pick the most relevant character based on card tag
+      const tagToChar: Record<string, CharacterId> = {
+        Eng: 'marcus', Sales: 'tom', Research: 'priya', UX: 'priya',
+        Executive: 'elena', Strategy: 'sarah', Product: 'sarah', Process: 'sarah',
+      };
+      const acknowledger: CharacterId = tagToChar[card.tag] ?? 'sarah';
+      const ackChar = characters.find(c => c.id === acknowledger);
+      const trust = ackChar?.trust ?? 0.5;
+      const ack = trust >= 0.65
+        ? `Good to see "${card.title}" wrapped up — that clears the path on my end.`
+        : `"${card.title}" done — noted.`;
+      setTimeout(() => {
+        get().injectMessage(acknowledger, ack, 'chat');
+      }, 2000 + Math.random() * 2000);
+      return;
+    }
+
+    // Only react to teammate cards (not other user movements)
     if (card.assignee === 'Y') return;
     const charInitialMap: Record<string, CharacterId> = { M: 'marcus', T: 'tom', P: 'priya', S: 'sarah', E: 'elena' };
     const characterId = charInitialMap[card.assignee];
