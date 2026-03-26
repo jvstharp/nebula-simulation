@@ -1,4 +1,4 @@
-import { Character, SessionState, Message, OKR, KanbanCard, KanbanColumn } from './types';
+import { Character, CharacterId, SessionState, Message, OKR, KanbanCard, KanbanColumn } from './types';
 
 export const CHARACTERS: Character[] = [
   {

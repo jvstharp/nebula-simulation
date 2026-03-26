@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { Character, CharacterId, Message, SessionState, Screen, AppTab, BrowserTab, ChaosEvent, OKR, PortfolioCaseStudy, AccessibilityPrefs, SimulationStage, KanbanCard, KanbanColumn } from './types';
 import { CHARACTERS, INITIAL_SESSION, INITIAL_MESSAGES, INITIAL_OKRS, REPLY_MAP, INITIAL_KANBAN_COLUMNS, CARD_REACTION_MAP } from './data';
 import { getSoundscape } from './soundscape';
+import { generateCharacterReply, TriggerType } from './ai';
 
 export interface MinimizedWindow {
   screen: Screen;
@@ -134,13 +135,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
     set({ messages: [...messages, msg] });
 
-    // Simulate AI reply
-    setTimeout(() => {
-      const replies = REPLY_MAP[activeCharacter.id] || [];
-      const reply = replies[Math.floor(Math.random() * replies.length)] || "I'll get back to you on this.";
+    // Generate live reply via Claude; fall back to REPLY_MAP on failure
+    const { session, kanbanColumns } = get();
+    generateCharacterReply(
+      activeCharacter.id,
+      'message_reply',
+      body,
+      { character: activeCharacter, recentMessages: messages, session: session!, kanbanColumns }
+    ).then(reply => {
+      const fallbackPool = REPLY_MAP[activeCharacter.id] || [];
+      const text = reply ?? (fallbackPool[Math.floor(Math.random() * fallbackPool.length)] || "I'll get back to you on this.");
       const trustDelta = (Math.random() - 0.3) * 0.1;
-      get().receiveReply(activeCharacter.id, reply, trustDelta);
-    }, 1500 + Math.random() * 2000);
+      get().receiveReply(activeCharacter.id, text, trustDelta);
+    });
   },
 
   setActiveCharacter: (activeCharacter) => set({ activeCharacter }),
@@ -245,7 +252,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
           const currentTrust = get().characters.find(c => c.id === characterId)?.trust ?? 0;
 
           let cardToAdvance: KanbanCard | undefined;
-          let toColId: string;
+          let toColId: string = '';
 
           if (inProgressCard && currentTrust >= 0.65) {
             cardToAdvance = inProgressCard;
@@ -260,10 +267,20 @@ export const useAppStore = create<AppStore>((set, get) => ({
           moveKanbanCard(cardToAdvance.id, toColId);
           set(s => ({ cardAdvanceCooldowns: { ...s.cardAdvanceCooldowns, [characterId]: Date.now() } }));
 
-          const updateMsg = toColId === 'inprogress'
-            ? `Picking up "${cardToAdvance.title}" — I'll loop back when I have something.`
-            : `"${cardToAdvance.title}" is ready for your review — let me know if you need changes.`;
-          injectMessage(characterId as CharacterId, updateMsg, 'chat');
+          const cardSnapshot = cardToAdvance;
+          const toColSnapshot = toColId;
+          const advChar = get().characters.find(c => c.id === characterId)!;
+          const fallbackMsg = toColSnapshot === 'inprogress'
+            ? `Picking up "${cardSnapshot.title}" — I'll loop back when I have something.`
+            : `"${cardSnapshot.title}" is ready for your review — let me know if you need changes.`;
+          generateCharacterReply(
+            characterId,
+            'card_advanced_autonomous',
+            `You are moving "${cardSnapshot.title}" to ${toColSnapshot === 'inprogress' ? 'In Progress' : 'Review'}.`,
+            { character: advChar, recentMessages: get().messages, session: get().session!, kanbanColumns: get().kanbanColumns }
+          ).then(reply => {
+            injectMessage(characterId as CharacterId, reply ?? fallbackMsg, 'chat');
+          });
         }, 4000 + Math.random() * 6000);
       }
     }
@@ -444,10 +461,29 @@ export const useAppStore = create<AppStore>((set, get) => ({
       return; // unknown column — no reaction
     }
 
-    const response = pick(pool);
-    setTimeout(() => {
-      get().injectMessage(characterId, response, 'chat');
-    }, 1500 + Math.random() * 1500);
+    const isPremature = toColId === 'done' && fromColId !== 'review';
+    const triggerType: TriggerType = toColId === 'done'
+      ? 'card_moved_to_done'
+      : toColId === 'inprogress'
+        ? 'card_moved_to_inprogress'
+        : toColId === 'review'
+          ? 'card_moved_to_review'
+          : 'card_moved_to_inprogress';
+    const triggerBody = isPremature
+      ? `The PM moved your card "${card.title}" directly from ${fromColId} to Done — the work is not complete.`
+      : `The PM moved your card "${card.title}" from ${fromColId} to ${toColId}.`;
+
+    generateCharacterReply(
+      characterId,
+      triggerType,
+      triggerBody,
+      { character: char, recentMessages: get().messages, session: session!, kanbanColumns: get().kanbanColumns }
+    ).then(reply => {
+      const text = reply ?? pick(pool);
+      setTimeout(() => {
+        get().injectMessage(characterId, text, 'chat');
+      }, 1500 + Math.random() * 1500);
+    });
   },
 
   onboardingStep: 0,
