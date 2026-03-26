@@ -618,10 +618,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ session: { ...session, status: 'completed', simulationStage: 'reporting', portfolio } });
 
     // Persist completed session to DB (fire and forget)
-    const { user: cu, dbSessionId } = get();
     const completedSession = get().session;
-    if (cu?.id && dbSessionId && completedSession) {
-      completeDbSession(dbSessionId, cu.id, completedSession, portfolio).catch(() => {});
+    if (user?.id && dbSessionId && completedSession) {
+      completeDbSession(dbSessionId, user.id, completedSession, portfolio).catch(() => {});
     }
 
     // Generate AI debrief in background
