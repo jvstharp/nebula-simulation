@@ -1,0 +1,154 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Note: users.id references auth.users(id) via a DB-level FK managed by Supabase.
+// Prisma does not manage the auth schema — the constraint exists in the DB already.
+
+model User {
+  id                 String   @id @db.Uuid
+  name               String
+  email              String
+  credits            Int      @default(10)
+  avatar             String?
+  experience_level   String?
+  preferred_industry String?
+  role_type          String?
+  institution        String?
+  domain             String?
+  additional_context String?
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime @default(now()) @db.Timestamptz(6)
+
+  sim_sessions    SimSession[]
+  sim_messages    SimMessage[]
+  session_events  SessionEvent[]
+  session_results SessionResult[]
+  portfolios      Portfolio[]
+
+  @@map("users")
+}
+
+model SimSession {
+  id                String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id           String    @db.Uuid
+  scenario_id       String
+  session_number    Int
+  status            String    @default("active")
+  difficulty        String    @default("standard")
+  simulation_stage  String    @default("planning")
+  elapsed_seconds   Int       @default(0)
+  credits           Int       @default(0)
+  composite_score   Decimal   @default(0) @db.Decimal(5, 2)
+  plan_score        Decimal?  @db.Decimal(5, 2)
+  plan_feedback     String?
+  plan_unlocked_at  DateTime? @db.Timestamptz(6)
+  chaos_mode        String    @default("normal")
+  chaos_tier        Int?
+  unlocked_secrets  String[]
+  fired_cascades    String[]
+  fired_chaos_ids   String[]
+  okrs              Json      @default("[]")
+  dynamic_analytics Json      @default("{}")
+  last_contacted_at Json      @default("{}")
+  started_at        DateTime  @default(now()) @db.Timestamptz(6)
+  completed_at      DateTime? @db.Timestamptz(6)
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime  @default(now()) @db.Timestamptz(6)
+
+  user           User           @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  sim_messages   SimMessage[]
+  session_events SessionEvent[]
+  session_result SessionResult?
+  portfolio      Portfolio?
+
+  @@map("sim_sessions")
+}
+
+model SimMessage {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  session_id String   @db.Uuid
+  user_id    String   @db.Uuid
+  from_id    String
+  to_id      String
+  channel    String
+  subject    String?
+  body       String
+  read       Boolean  @default(false)
+  timestamp  DateTime @default(now()) @db.Timestamptz(6)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  session SimSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  user    User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("sim_messages")
+}
+
+model SessionEvent {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  session_id   String   @db.Uuid
+  user_id      String   @db.Uuid
+  event_type   String
+  title        String
+  description  String?
+  severity     String?
+  tier         Int?
+  acknowledged Boolean  @default(false)
+  fired_at     DateTime @default(now()) @db.Timestamptz(6)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  session SimSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  user    User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("session_events")
+}
+
+model SessionResult {
+  id                        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  session_id                String   @unique @db.Uuid
+  user_id                   String   @db.Uuid
+  composite_score           Decimal  @default(0) @db.Decimal(5, 2)
+  skill_prioritisation      Decimal  @default(0) @db.Decimal(5, 2)
+  skill_stakeholder_mgmt    Decimal  @default(0) @db.Decimal(5, 2)
+  skill_communication       Decimal  @default(0) @db.Decimal(5, 2)
+  skill_conflict_resolution Decimal  @default(0) @db.Decimal(5, 2)
+  skill_strategic_thinking  Decimal  @default(0) @db.Decimal(5, 2)
+  skill_execution_speed     Decimal  @default(0) @db.Decimal(5, 2)
+  debrief                   Json     @default("[]")
+  decision_history          Json     @default("[]")
+  created_at                DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime @default(now()) @db.Timestamptz(6)
+
+  session SimSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  user    User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("session_results")
+}
+
+model Portfolio {
+  id                    String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  session_id            String   @unique @db.Uuid
+  user_id               String   @db.Uuid
+  session_number        Int
+  scenario_name         String
+  session_date          DateTime @default(now()) @db.Timestamptz(6)
+  user_name             String
+  scenario_summary      String?
+  challenge             String?
+  key_decisions         Json     @default("[]")
+  skills_above_baseline Json     @default("[]")
+  performance_narrative String?
+  verification_id       String
+  status                String   @default("generating")
+  created_at            DateTime @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime @default(now()) @db.Timestamptz(6)
+
+  session SimSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  user    User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("portfolios")
+}

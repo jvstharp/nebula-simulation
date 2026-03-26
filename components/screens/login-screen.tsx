@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useAppStore } from "@/lib/store";
 import { USER_AVATAR } from "@/lib/data";
+import { supabase } from "@/lib/supabase";
 
 export function LoginScreen() {
   const { setScreen, setUser } = useAppStore();
@@ -18,10 +19,54 @@ export function LoginScreen() {
     if (!email || !password) { setError('Please fill in all fields.'); return; }
     if (mode === 'register' && !name) { setError('Please enter your name.'); return; }
     setLoading(true);
-    await new Promise(r => setTimeout(r, 800));
-    setUser({ name: name || email.split('@')[0], email, credits: 10, avatar: USER_AVATAR });
-    setScreen('onboarding');
-    setLoading(false);
+
+    try {
+      if (mode === 'register') {
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { name } },
+        });
+        if (signUpError) throw signUpError;
+
+        // Update the name in public.users (trigger may use email prefix by default)
+        if (data.user) {
+          await supabase.from('users').update({ name }).eq('id', data.user.id);
+          setUser({ id: data.user.id, name, email, credits: 10, avatar: USER_AVATAR });
+        }
+      } else {
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        if (signInError) throw signInError;
+
+        // Fetch profile from public.users
+        const { data: profile } = await supabase
+          .from('users')
+          .select('name, credits, avatar')
+          .eq('id', data.user.id)
+          .single();
+
+        setUser({
+          id: data.user.id,
+          name: profile?.name ?? data.user.email?.split('@')[0] ?? 'User',
+          email: data.user.email ?? email,
+          credits: profile?.credits ?? 10,
+          avatar: profile?.avatar ?? USER_AVATAR,
+        });
+      }
+
+      setScreen('onboarding');
+    } catch (err: any) {
+      setError(err.message ?? 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogle = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin },
+    });
   };
 
   const inputStyle: React.CSSProperties = {
@@ -202,7 +247,7 @@ export function LoginScreen() {
           </div>
 
           <button
-            onClick={() => handleSubmit({ preventDefault: () => {} } as any)}
+            onClick={handleGoogle}
             style={{
               width: '100%',
               height: 40,

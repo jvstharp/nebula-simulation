@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { Character, Message, SessionState, Screen, AppTab, BrowserTab, ChaosEvent, OKR, PortfolioCaseStudy, AccessibilityPrefs, SimulationStage, SimPreferences, CharacterId, DifficultyLevel, DecisionNode, DebriefItem, DynamicAnalytics } from './types';
 import { CHARACTERS, INITIAL_SESSION, INITIAL_MESSAGES, INITIAL_OKRS, REPLY_MAP, CHARACTER_SECRETS, CASCADE_EVENTS, CHAOS_EVENT_POOL, DIFFICULTY_CONFIG, MOCK_ANALYTICS } from './data';
 import { getSoundscape } from './soundscape';
+import { createDbSession, saveMessage, saveSessionEvent, completeDbSession } from './db';
 
 export interface MinimizedWindow {
   screen: Screen;
@@ -51,8 +52,11 @@ interface AppStore {
   restoreWindow: (screen: Screen) => void;
 
   // Auth
-  user: { name: string; email: string; credits: number; avatar: string } | null;
+  user: { id: string; name: string; email: string; credits: number; avatar: string } | null;
   setUser: (u: AppStore['user']) => void;
+
+  // DB session tracking
+  dbSessionId: string | null;
 
   // Simulation
   session: SessionState | null;
@@ -125,6 +129,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   user: null,
   setUser: (user) => set({ user }),
 
+  dbSessionId: null,
+
   session: null,
   characters: CHARACTERS,
   messages: [],
@@ -165,6 +171,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
       characters: CHARACTERS,
     });
     getSoundscape().init().catch(() => {});
+
+    // Persist to DB (fire and forget)
+    const { user } = get();
+    const newSession = get().session;
+    if (user?.id && newSession) {
+      createDbSession(user.id, newSession)
+        .then(id => { if (id) set({ dbSessionId: id }); })
+        .catch(() => {});
+    }
   },
 
   sendMessage: (body, channel, subject) => {
@@ -189,6 +204,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
     } : session;
 
     set({ messages: [...messages, msg], session: updatedSession });
+
+    // Persist user message to DB (fire and forget)
+    const { user, dbSessionId } = get();
+    if (user?.id && dbSessionId) {
+      saveMessage(dbSessionId, user.id, msg).catch(() => {});
+    }
 
     // Capture for delay reference
     const charSnapshot = { ...activeCharacter };
@@ -377,6 +398,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
       } : session,
     });
 
+    // Persist character reply to DB (fire and forget)
+    const { user: u, dbSessionId: dbSid } = get();
+    if (u?.id && dbSid) {
+      saveMessage(dbSid, u.id, msg).catch(() => {});
+    }
+
     // Auto-clear trust toast
     setTimeout(() => {
       set(s => s.trustToast?.characterId === characterId ? { trustToast: null } : {});
@@ -470,6 +497,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
           }));
 
           getSoundscape().setChaosState?.(pick.tier);
+
+          // Persist chaos event to DB (fire and forget)
+          const { user: cu, dbSessionId: cSid } = get();
+          if (cu?.id && cSid) {
+            saveSessionEvent(cSid, cu.id, chaos).catch(() => {});
+          }
         }
       }
 
@@ -576,6 +609,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ session: { ...session, status: 'completed', simulationStage: 'reporting', portfolio } });
+
+    // Persist completed session to DB (fire and forget)
+    const { user: cu, dbSessionId } = get();
+    const completedSession = get().session;
+    if (cu?.id && dbSessionId && completedSession) {
+      completeDbSession(dbSessionId, cu.id, completedSession, portfolio).catch(() => {});
+    }
 
     // Generate AI debrief in background
     get().generateDebrief();
