@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAppStore } from "@/lib/store";
 import { AppWindow } from "@/components/layout/app-window";
 import { RelationshipWeb } from "@/components/simulation/relationship-web";
@@ -47,37 +47,22 @@ function SectionHdr({ title, action, onAction }: { title: string; action?: strin
   );
 }
 
-/* ── Data ───────────────────────────────────────────────────────────────────── */
-const BADGES = [
-  { id: 1, label: 'Strategic Thinker', icon: '🧠', color: '#bb76d6', earned: true,  desc: 'Demonstrated multi-step strategic reasoning in 2+ sessions' },
-  { id: 2, label: 'Fast Executor',     icon: '⚡', color: '#deaf49', earned: true,  desc: 'Resolved Tier 3 chaos event within 10 minutes' },
-  { id: 3, label: 'Stakeholder Master',icon: '🤝', color: '#02ba67', earned: true,  desc: 'Maintained avg trust score above 0.75 throughout session' },
-  { id: 4, label: 'Clear Communicator',icon: '💬', color: '#49a5de', earned: true,  desc: 'Communication score above 80 in two consecutive sessions' },
-  { id: 5, label: 'Crisis Manager',    icon: '🔥', color: '#d44848', earned: true,  desc: 'Successfully navigated all three chaos tiers' },
-  { id: 6, label: 'Team Builder',      icon: '👥', color: '#db966b', earned: false, desc: 'Engage all 5 characters with positive outcomes' },
-  { id: 7, label: 'Data Driven',       icon: '📊', color: '#49a5de', earned: false, desc: 'Reference metrics in 80% of decisions' },
-  { id: 8, label: 'Consensus Builder', icon: '🎯', color: '#bb76d6', earned: false, desc: 'Achieve full stakeholder alignment in a single session' },
-];
+/* ── Types ───────────────────────────────────────────────────────────────────── */
+interface ProfileData {
+  profile: { id: string; name: string; email: string; createdAt: string };
+  sessions: { id: string; scenarioId: string; status: string; elapsedSeconds: number; createdAt: string; compositeScore: number | null; portfolio: { id: string; status: string; verificationId: string; scenarioName: string } | null }[];
+  avgScores: { stakeholderMgmt: number; communication: number; strategicThinking: number; conflictResolution: number; prioritisation: number; executionSpeed: number } | null;
+  badges: { id: string; label: string; icon: string; color: string; earned: boolean; desc: string }[];
+}
 
-const CERTIFICATES = [
-  { id: 1, title: 'Roadmap Mastery',           session: 'Session 1', date: 'Jan 14, 2026', score: 84, color: '#bb76d6', verificationId: 'NEB-2026-0114-MC01' },
-  { id: 2, title: 'Stakeholder Alignment Pro', session: 'Session 2', date: 'Feb 22, 2026', score: 91, color: '#02ba67', verificationId: 'NEB-2026-0222-MC02' },
-];
-
-const SESSIONS = [
-  { id: 1, scenario: 'The Roadmap Reckoning', date: 'Jan 14, 2026', score: 84, duration: '47 min', status: 'completed' },
-  { id: 2, scenario: 'The Roadmap Reckoning', date: 'Feb 22, 2026', score: 91, duration: '52 min', status: 'completed' },
-  { id: 3, scenario: 'The Roadmap Reckoning', date: 'Mar 14, 2026', score: null, duration: '—',    status: 'active'    },
-];
-
-const SKILL_SCORES = [
-  { label: 'Communication',       score: 84, color: '#49a5de' },
-  { label: 'Strategic Thinking',  score: 79, color: '#bb76d6' },
-  { label: 'Stakeholder Mgmt',    score: 88, color: '#02ba67' },
-  { label: 'Execution Speed',     score: 65, color: '#deaf49' },
-  { label: 'Conflict Resolution', score: 72, color: '#db966b' },
-  { label: 'Prioritisation',      score: 77, color: '#d44848' },
-];
+const SKILL_COLOR: Record<string, string> = {
+  communication:    '#49a5de',
+  strategicThinking:'#bb76d6',
+  stakeholderMgmt:  '#02ba67',
+  executionSpeed:   '#deaf49',
+  conflictResolution:'#db966b',
+  prioritisation:   '#d44848',
+};
 
 const EXPERIENCE = [
   {
@@ -140,8 +125,55 @@ const NAV_ITEMS = ['Overview', 'Trust Network', 'Badges', 'Certificates', 'Recor
 export function ProfileScreen() {
   const { user, setScreen } = useAppStore();
   const [activeNav, setActiveNav] = useState('Overview');
+  const [profileData, setProfileData] = useState<ProfileData | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
 
-  const displayName  = user?.name  ?? 'Maya Chen';
+  useEffect(() => {
+    fetch('/api/user/profile')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setProfileData(data); })
+      .catch(() => {})
+      .finally(() => setLoadingProfile(false));
+  }, []);
+
+  const displayName = user?.name ?? profileData?.profile?.name ?? 'PM';
+
+  // Derive display data from real API or fall back to empty state
+  const skillScores = profileData?.avgScores
+    ? Object.entries(profileData.avgScores).map(([key, score]) => ({
+        label: key === 'stakeholderMgmt' ? 'Stakeholder Mgmt'
+             : key === 'strategicThinking' ? 'Strategic Thinking'
+             : key === 'conflictResolution' ? 'Conflict Resolution'
+             : key === 'executionSpeed' ? 'Execution Speed'
+             : key.charAt(0).toUpperCase() + key.slice(1),
+        score: score as number,
+        color: SKILL_COLOR[key] ?? T.primary,
+      }))
+    : [];
+
+  const badges = profileData?.badges ?? [];
+
+  const sessions = (profileData?.sessions ?? []).map((s, i) => ({
+    id: s.id,
+    scenario: 'The Roadmap Reckoning',
+    date: new Date(s.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+    score: s.compositeScore,
+    duration: s.elapsedSeconds ? `${Math.round(s.elapsedSeconds / 60)} min` : '—',
+    status: s.status,
+    sessionNum: i + 1,
+  }));
+
+  const certificates = (profileData?.sessions ?? [])
+    .filter(s => s.status === 'completed' && s.compositeScore != null && (s.compositeScore ?? 0) >= 70)
+    .map((s, i) => ({
+      id: s.id,
+      title: 'Roadmap Mastery',
+      session: `Session ${i + 1}`,
+      date: new Date(s.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      score: s.compositeScore ?? 0,
+      color: i % 2 === 0 ? '#bb76d6' : '#02ba67',
+      verificationId: s.portfolio?.verificationId ?? s.id,
+    }));
 
   return (
     <AppWindow
@@ -318,7 +350,7 @@ export function ProfileScreen() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                 <span style={{ fontSize: 10.5, color: 'rgba(240,240,243,0.38)', textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600, width: 52, flexShrink: 0 }}>Badges</span>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {BADGES.filter(b => b.earned).slice(0, 3).map(b => (
+                  {badges.filter(b => b.earned).slice(0, 3).map(b => (
                     <span key={b.id} style={{
                       fontSize: 10.5, fontWeight: 600, color: '#000000',
                       background: b.color,
@@ -430,7 +462,7 @@ export function ProfileScreen() {
                 <div style={{ ...card, padding: '18px 22px' }}>
                   <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 16 }}>Skill Scores</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {SKILL_SCORES.map(skill => (
+                    {skillScores.map(skill => (
                       <div key={skill.label} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                         <span style={{ fontSize: 12.5, color: T.muted, width: 155, flexShrink: 0 }}>{skill.label}</span>
                         <div style={{ flex: 1, height: 5, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' }}>
@@ -524,7 +556,7 @@ export function ProfileScreen() {
               <div>
                 <SectionHdr title="Badges" action="See all 5 badges →" onAction={() => setActiveNav('Badges')} />
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  {BADGES.filter(b => b.earned).slice(0, 2).map(badge => (
+                  {badges.filter(b => b.earned).slice(0, 2).map(badge => (
                     <div key={badge.id} style={{ ...card, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
                       <div style={{
                         width: 44, height: 44, borderRadius: 12, flexShrink: 0,
@@ -561,7 +593,7 @@ export function ProfileScreen() {
               <div>
                 <SectionHdr title="Certificates" action="See all →" onAction={() => setActiveNav('Certificates')} />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {CERTIFICATES.map(cert => (
+                  {certificates.map(cert => (
                     <div key={cert.id} style={{ ...card, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
                       <div style={{
                         width: 40, height: 40, borderRadius: 10, flexShrink: 0,
@@ -648,7 +680,7 @@ export function ProfileScreen() {
                 <p style={{ fontSize: 13, color: T.muted, margin: 0 }}>5 of 8 badges earned across your sessions</p>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-                {BADGES.map(badge => (
+                {badges.map(badge => (
                   <div key={badge.id} style={{
                     ...card, padding: '16px',
                     opacity: badge.earned ? 1 : 0.4,
@@ -679,14 +711,14 @@ export function ProfileScreen() {
             </div>
           )}
 
-          {/* CERTIFICATES */}
+          {/* certificates */}
           {activeNav === 'Certificates' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div>
                 <SectionHdr title="Certificates" />
                 <p style={{ fontSize: 13, color: T.muted, margin: 0 }}>Blockchain-verified certificates issued upon session completion</p>
               </div>
-              {CERTIFICATES.map(cert => (
+              {certificates.map(cert => (
                 <div key={cert.id} style={{ ...card, padding: '20px 24px', display: 'flex', alignItems: 'center', gap: 20 }}>
                   <div style={{
                     width: 56, height: 56, borderRadius: 14,
@@ -733,7 +765,7 @@ export function ProfileScreen() {
                 <SectionHdr title="Session Records" />
                 <p style={{ fontSize: 13, color: T.muted, margin: 0 }}>Complete history of your simulation runs</p>
               </div>
-              {SESSIONS.map(session => (
+              {sessions.map(session => (
                 <div key={session.id} style={{ ...card, padding: '18px 22px', display: 'flex', alignItems: 'center', gap: 20 }}>
                   <div style={{
                     width: 44, height: 44, borderRadius: 12, flexShrink: 0,

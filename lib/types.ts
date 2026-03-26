@@ -1,5 +1,23 @@
 export type CharacterId = 'sarah' | 'marcus' | 'priya' | 'tom' | 'elena';
 
+export interface KanbanCard {
+  id: string;
+  title: string;
+  tag: string;
+  assignee: string; // 'Y' | 'M' | 'S' | 'P' | 'T' | 'E'
+  priority: 'high' | 'med' | 'low';
+  notes: string;
+  linkedOkr?: string;
+  blocked?: boolean;
+}
+
+export interface KanbanColumn {
+  id: string;
+  label: string;
+  color: string;
+  cards: KanbanCard[];
+}
+
 export interface Character {
   id: CharacterId;
   name: string;

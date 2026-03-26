@@ -96,6 +96,13 @@ interface AppStore {
   advanceToReporting: () => void;
   generateDebrief: () => void;
 
+  // Kanban board (shared state so simulation can update it)
+  kanbanColumns: KanbanColumn[];
+  cardAdvanceCooldowns: Partial<Record<CharacterId, number>>;
+  moveKanbanCard: (cardId: string, toColId: string) => void;
+  injectMessage: (characterId: CharacterId, body: string, channel: 'chat' | 'email') => void;
+  onUserMoveCard: (card: KanbanCard, fromColId: string, toColId: string) => void;
+
   // Onboarding
   onboardingStep: number;
   assessmentAnswers: number[];
@@ -578,7 +585,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   completeSession: () => {
-    const { session, user } = get();
+    const { session, user, dbSessionId, characters, kanbanColumns } = get();
     if (!session) return;
     const portfolio: PortfolioCaseStudy = {
       sessionId: session.id,
@@ -625,7 +632,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set(s => ({
         session: s.session ? {
           ...s.session,
-          portfolio: s.session.portfolio ? { ...s.session.portfolio, status: 'ready' } : null,
+          portfolio: s.session.portfolio ? {
+            ...s.session.portfolio,
+            verificationId: portfolioData.verificationId ?? s.session.portfolio.verificationId,
+          } : null,
         } : null,
       }));
     }, 6000);

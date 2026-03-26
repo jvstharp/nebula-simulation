@@ -253,6 +253,41 @@ This is not a recommendation. It is information.
   },
 ];
 
+// Scenario-aligned initial board — tasks mirror the 5 session OKRs
+export const INITIAL_KANBAN_COLUMNS: KanbanColumn[] = [
+  {
+    id: 'backlog', label: 'Backlog', color: '#6b7280',
+    cards: [
+      { id: 'k1', title: 'Request Acme deal email chain from Tom', tag: 'Sales', assignee: 'T', priority: 'high', notes: '', linkedOkr: 'okr2' },
+      { id: 'k2', title: 'SSO approach evaluation — WorkOS vs in-house', tag: 'Eng', assignee: 'M', priority: 'high', notes: '', linkedOkr: 'okr3' },
+      { id: 'k3', title: 'Review onboarding research data with Priya', tag: 'Research', assignee: 'P', priority: 'high', notes: '' },
+      { id: 'k4', title: 'Competitive brief — Acuity SSO timeline', tag: 'Strategy', assignee: 'T', priority: 'med', notes: '' },
+    ],
+  },
+  {
+    id: 'inprogress', label: 'In Progress', color: '#49a5de',
+    cards: [
+      { id: 'k5', title: 'Engineering scope negotiation with Marcus', tag: 'Eng', assignee: 'M', priority: 'high', notes: '', linkedOkr: 'okr1' },
+      { id: 'k6', title: 'CEO options brief — draft', tag: 'Executive', assignee: 'Y', priority: 'high', notes: '', linkedOkr: 'okr4' },
+      { id: 'k7', title: 'Cross-functional alignment notes', tag: 'Strategy', assignee: 'Y', priority: 'med', notes: '' },
+    ],
+  },
+  {
+    id: 'review', label: 'Review', color: '#deaf49',
+    cards: [
+      { id: 'k8', title: 'Revised Q3 scope document v2', tag: 'Product', assignee: 'Y', priority: 'high', notes: '', linkedOkr: 'okr1' },
+      { id: 'k9', title: 'Sales commitment risk assessment', tag: 'Sales', assignee: 'T', priority: 'med', notes: '', linkedOkr: 'okr2' },
+    ],
+  },
+  {
+    id: 'done', label: 'Done', color: '#02ba67',
+    cards: [
+      { id: 'k10', title: 'Stakeholder 1:1 schedule', tag: 'Process', assignee: 'Y', priority: 'med', notes: '' },
+      { id: 'k11', title: 'Initial roadmap audit', tag: 'Strategy', assignee: 'Y', priority: 'low', notes: '' },
+    ],
+  },
+];
+
 export const ASSESSMENT_QUESTIONS = [
   {
     question: "You inherit a contested roadmap with four stakeholders pulling in different directions. What is your first move?",
