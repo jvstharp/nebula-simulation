@@ -10,145 +10,115 @@ datasource db {
 // Prisma does not manage the auth schema — the constraint exists in the DB already.
 
 model User {
-  id                 String   @id @db.Uuid
-  name               String
-  email              String
-  credits            Int      @default(10)
-  avatar             String?
-  experience_level   String?
-  preferred_industry String?
-  role_type          String?
-  institution        String?
-  domain             String?
-  additional_context String?
-  created_at         DateTime @default(now()) @db.Timestamptz(6)
-  updated_at         DateTime @default(now()) @db.Timestamptz(6)
+  id                String   @id @db.Uuid
+  name              String
+  email             String
+  credits           Int      @default(10)
+  avatar            String?
+  experienceLevel   String?  @map("experience_level")
+  preferredIndustry String?  @map("preferred_industry")
+  roleType          String?  @map("role_type")
+  institution       String?
+  domain            String?
+  additionalContext String?  @map("additional_context")
+  createdAt         DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt         DateTime @default(now()) @db.Timestamptz(6) @map("updated_at")
 
-  sim_sessions    SimSession[]
-  sim_messages    SimMessage[]
-  session_events  SessionEvent[]
-  session_results SessionResult[]
-  portfolios      Portfolio[]
+  sessions      SimSession[]
+  simMessages   SimMessage[]
+  sessionEvents SessionEvent[]
 
   @@map("users")
 }
 
 model SimSession {
-  id                String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  user_id           String    @db.Uuid
-  scenario_id       String
-  session_number    Int
-  status            String    @default("active")
-  difficulty        String    @default("standard")
-  simulation_stage  String    @default("planning")
-  elapsed_seconds   Int       @default(0)
-  credits           Int       @default(0)
-  composite_score   Decimal   @default(0) @db.Decimal(5, 2)
-  plan_score        Decimal?  @db.Decimal(5, 2)
-  plan_feedback     String?
-  plan_unlocked_at  DateTime? @db.Timestamptz(6)
-  chaos_mode        String    @default("normal")
-  chaos_tier        Int?
-  unlocked_secrets  String[]
-  fired_cascades    String[]
-  fired_chaos_ids   String[]
-  okrs              Json      @default("[]")
-  dynamic_analytics Json      @default("{}")
-  last_contacted_at Json      @default("{}")
-  started_at        DateTime  @default(now()) @db.Timestamptz(6)
-  completed_at      DateTime? @db.Timestamptz(6)
-  created_at        DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at        DateTime  @default(now()) @db.Timestamptz(6)
+  id             String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId         String   @db.Uuid @map("user_id")
+  scenarioId     String   @map("scenario_id")
+  status         String   @default("active")
+  stage          String   @default("planning") @map("simulation_stage")
+  elapsedSeconds Int      @default(0) @map("elapsed_seconds")
+  stateJson      Json?    @map("state_json")
+  createdAt      DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt      DateTime @default(now()) @db.Timestamptz(6) @map("updated_at")
 
-  user           User           @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  sim_messages   SimMessage[]
-  session_events SessionEvent[]
-  session_result SessionResult?
-  portfolio      Portfolio?
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  SimMessage[]
+  events    SessionEvent[]
+  result    SessionResult?
+  portfolio Portfolio?
 
   @@map("sim_sessions")
 }
 
 model SimMessage {
-  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  session_id String   @db.Uuid
-  user_id    String   @db.Uuid
-  from_id    String
-  to_id      String
-  channel    String
-  subject    String?
-  body       String
-  read       Boolean  @default(false)
-  timestamp  DateTime @default(now()) @db.Timestamptz(6)
-  created_at DateTime @default(now()) @db.Timestamptz(6)
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  sessionId String   @db.Uuid @map("session_id")
+  userId    String?  @db.Uuid @map("user_id")
+  from      String   @map("from_id")
+  to        String   @map("to_id")
+  channel   String
+  subject   String?
+  body      String
+  read      Boolean  @default(false)
+  timestamp DateTime @default(now()) @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
 
-  session SimSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
-  user    User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  session SimSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("sim_messages")
 }
 
 model SessionEvent {
-  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  session_id   String   @db.Uuid
-  user_id      String   @db.Uuid
-  event_type   String
-  title        String
-  description  String?
-  severity     String?
-  tier         Int?
-  acknowledged Boolean  @default(false)
-  fired_at     DateTime @default(now()) @db.Timestamptz(6)
-  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  sessionId String   @db.Uuid @map("session_id")
+  userId    String?  @db.Uuid @map("user_id")
+  type      String   @map("event_type")
+  payload   Json     @default("{}")
+  createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
 
-  session SimSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
-  user    User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  session SimSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("session_events")
 }
 
 model SessionResult {
-  id                        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  session_id                String   @unique @db.Uuid
-  user_id                   String   @db.Uuid
-  composite_score           Decimal  @default(0) @db.Decimal(5, 2)
-  skill_prioritisation      Decimal  @default(0) @db.Decimal(5, 2)
-  skill_stakeholder_mgmt    Decimal  @default(0) @db.Decimal(5, 2)
-  skill_communication       Decimal  @default(0) @db.Decimal(5, 2)
-  skill_conflict_resolution Decimal  @default(0) @db.Decimal(5, 2)
-  skill_strategic_thinking  Decimal  @default(0) @db.Decimal(5, 2)
-  skill_execution_speed     Decimal  @default(0) @db.Decimal(5, 2)
-  debrief                   Json     @default("[]")
-  decision_history          Json     @default("[]")
-  created_at                DateTime @default(now()) @db.Timestamptz(6)
-  updated_at                DateTime @default(now()) @db.Timestamptz(6)
+  id                 String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  sessionId          String   @unique @db.Uuid @map("session_id")
+  prioritisation     Float    @default(0) @map("skill_prioritisation")
+  stakeholderMgmt    Float    @default(0) @map("skill_stakeholder_mgmt")
+  communication      Float    @default(0) @map("skill_communication")
+  conflictResolution Float    @default(0) @map("skill_conflict_resolution")
+  strategicThinking  Float    @default(0) @map("skill_strategic_thinking")
+  executionSpeed     Float    @default(0) @map("skill_execution_speed")
+  compositeScore     Float    @default(0) @map("composite_score")
+  constraintsFound   Int      @default(0) @map("constraints_found")
+  trustFinal         Json     @default("{}") @map("trust_final")
+  createdAt          DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt          DateTime @default(now()) @db.Timestamptz(6) @map("updated_at")
 
-  session SimSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
-  user    User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  session SimSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@map("session_results")
 }
 
 model Portfolio {
-  id                    String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  session_id            String   @unique @db.Uuid
-  user_id               String   @db.Uuid
-  session_number        Int
-  scenario_name         String
-  session_date          DateTime @default(now()) @db.Timestamptz(6)
-  user_name             String
-  scenario_summary      String?
-  challenge             String?
-  key_decisions         Json     @default("[]")
-  skills_above_baseline Json     @default("[]")
-  performance_narrative String?
-  verification_id       String
-  status                String   @default("generating")
-  created_at            DateTime @default(now()) @db.Timestamptz(6)
-  updated_at            DateTime @default(now()) @db.Timestamptz(6)
+  id                   String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  sessionId            String   @unique @db.Uuid @map("session_id")
+  status               String   @default("generating")
+  scenarioName         String   @map("scenario_name")
+  scenarioSummary      String?  @map("scenario_summary")
+  challenge            String?
+  keyDecisions         Json     @default("[]") @map("key_decisions")
+  skillScores          Json     @default("{}") @map("skills_above_baseline")
+  performanceNarrative String?  @map("performance_narrative")
+  verificationId       String?  @map("verification_id")
+  createdAt            DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt            DateTime @default(now()) @db.Timestamptz(6) @map("updated_at")
 
-  session SimSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
-  user    User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  session SimSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@map("portfolios")
 }

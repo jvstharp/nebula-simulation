@@ -1,4 +1,4 @@
-import { Character, SessionState, Message, OKR, CharacterId, DifficultyLevel } from './types';
+import { Character, SessionState, Message, OKR, CharacterId, DifficultyLevel, KanbanColumn } from './types';
 
 export const USER_AVATAR = 'https://randomuser.me/api/portraits/men/75.jpg';
 

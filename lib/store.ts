@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { Character, Message, SessionState, Screen, AppTab, BrowserTab, ChaosEvent, OKR, PortfolioCaseStudy, AccessibilityPrefs, SimulationStage, SimPreferences, CharacterId, DifficultyLevel, DecisionNode, DebriefItem, DynamicAnalytics } from './types';
-import { CHARACTERS, INITIAL_SESSION, INITIAL_MESSAGES, INITIAL_OKRS, REPLY_MAP, CHARACTER_SECRETS, CASCADE_EVENTS, CHAOS_EVENT_POOL, DIFFICULTY_CONFIG, MOCK_ANALYTICS } from './data';
+import { Character, Message, SessionState, Screen, AppTab, BrowserTab, ChaosEvent, OKR, PortfolioCaseStudy, AccessibilityPrefs, SimulationStage, SimPreferences, CharacterId, DifficultyLevel, DecisionNode, DebriefItem, DynamicAnalytics, KanbanColumn, KanbanCard } from './types';
+import { CHARACTERS, INITIAL_SESSION, INITIAL_MESSAGES, INITIAL_OKRS, REPLY_MAP, CHARACTER_SECRETS, CASCADE_EVENTS, CHAOS_EVENT_POOL, DIFFICULTY_CONFIG, MOCK_ANALYTICS, INITIAL_KANBAN_COLUMNS } from './data';
 import { getSoundscape } from './soundscape';
 import { createDbSession, saveMessage, saveSessionEvent, completeDbSession } from './db';
 
@@ -147,6 +147,37 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   voiceMode: false,
   setVoiceMode: (voiceMode) => set({ voiceMode }),
+
+  kanbanColumns: INITIAL_KANBAN_COLUMNS,
+  cardAdvanceCooldowns: {},
+  moveKanbanCard: (cardId, toColId) => set(s => {
+    const cols = s.kanbanColumns.map(col => ({
+      ...col,
+      cards: col.cards.filter(c => c.id !== cardId),
+    }));
+    const sourceCard = s.kanbanColumns.flatMap(c => c.cards).find(c => c.id === cardId);
+    if (!sourceCard) return {};
+    return {
+      kanbanColumns: cols.map(col =>
+        col.id === toColId ? { ...col, cards: [...col.cards, sourceCard] } : col
+      ),
+    };
+  }),
+  injectMessage: (characterId, body, channel) => {
+    const msg: Message = {
+      id: `injected-${Date.now()}`,
+      from: characterId,
+      to: 'user',
+      channel,
+      body,
+      timestamp: new Date(),
+      read: false,
+    };
+    set(s => ({ messages: [...s.messages, msg] }));
+  },
+  onUserMoveCard: (card, fromColId, toColId) => {
+    get().moveKanbanCard(card.id, toColId);
+  },
 
   controlPanelOpen: false,
   setControlPanelOpen: (open) => set({ controlPanelOpen: open }),
@@ -633,7 +664,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
           ...s.session,
           portfolio: s.session.portfolio ? {
             ...s.session.portfolio,
-            verificationId: portfolioData.verificationId ?? s.session.portfolio.verificationId,
+            verificationId: portfolio.verificationId ?? s.session.portfolio.verificationId,
           } : null,
         } : null,
       }));
