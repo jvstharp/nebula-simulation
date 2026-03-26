@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id // matches Supabase auth.users.id (UUID)
+  email     String   @unique
+  name      String
+  createdAt DateTime @default(now())
+
+  sessions SimSession[]
+
+  @@map("users")
+}
+
+model SimSession {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scenarioId    String   @default("roadmap-reckoning")
+  status        String   @default("active") // active | completed | abandoned
+  stage         String   @default("planning") // planning | execution | reporting
+  stateJson     Json? // full Zustand snapshot (characters trust, kanban, okrs)
+  elapsedSeconds Int     @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  messages  SimMessage[]
+  events    SessionEvent[]
+  result    SessionResult?
+  portfolio Portfolio?
+
+  @@index([userId])
+  @@map("sim_sessions")
+}
+
+model SimMessage {
+  id        String     @id @default(cuid())
+  sessionId String
+  session   SimSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  from      String // characterId or 'user'
+  to        String
+  channel   String // chat | email
+  body      String
+  createdAt DateTime   @default(now())
+
+  @@index([sessionId, from])
+  @@map("sim_messages")
+}
+
+model SessionEvent {
+  id        String     @id @default(cuid())
+  sessionId String
+  session   SimSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  type      String // message_sent | card_moved | trust_changed | chaos_triggered | session_started | session_completed
+  payload   Json
+  createdAt DateTime   @default(now())
+
+  @@index([sessionId, type])
+  @@map("session_events")
+}
+
+model SessionResult {
+  id        String     @id @default(cuid())
+  sessionId String     @unique
+  session   SimSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // Skill scores 0–100
+  prioritisation     Int @default(0)
+  stakeholderMgmt    Int @default(0)
+  communication      Int @default(0)
+  conflictResolution Int @default(0)
+  strategicThinking  Int @default(0)
+  executionSpeed     Int @default(0)
+
+  compositeScore   Int  @default(0)
+  constraintsFound Int  @default(0) // out of 6
+  trustFinal       Json? // { marcus: 0.7, sarah: 0.8, ... }
+
+  createdAt DateTime @default(now())
+
+  @@map("session_results")
+}
+
+model Portfolio {
+  id        String     @id @default(cuid())
+  sessionId String     @unique
+  session   SimSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  status    String     @default("generating") // generating | ready | failed
+
+  scenarioName         String
+  scenarioSummary      String
+  challenge            String
+  keyDecisions         Json // { bullet: string }[]
+  skillScores          Json // SkillScores object
+  performanceNarrative String?
+  verificationId       String @unique @default(cuid())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("portfolios")
+}
