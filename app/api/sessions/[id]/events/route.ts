@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { db } from '@/lib/db';
+import { db } from '@/lib/db-server';
 
 // POST /api/sessions/[id]/events — append a decision event
 export async function POST(

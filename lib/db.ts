@@ -1,5 +1,4 @@
 import { supabase } from './supabase';
-export { prisma as db } from './prisma';
 import { SessionState, Message, ChaosEvent, PortfolioCaseStudy } from './types';
 
 export async function createDbSession(
