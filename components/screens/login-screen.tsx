@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useAppStore } from "@/lib/store";
+import { USER_AVATAR } from "@/lib/data";
 
 export function LoginScreen() {
   const { setScreen, setUser } = useAppStore();
@@ -18,7 +19,7 @@ export function LoginScreen() {
     if (mode === 'register' && !name) { setError('Please enter your name.'); return; }
     setLoading(true);
     await new Promise(r => setTimeout(r, 800));
-    setUser({ name: name || email.split('@')[0], email, credits: 10 });
+    setUser({ name: name || email.split('@')[0], email, credits: 10, avatar: USER_AVATAR });
     setScreen('onboarding');
     setLoading(false);
   };

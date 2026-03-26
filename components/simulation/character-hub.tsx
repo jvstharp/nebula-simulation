@@ -29,7 +29,7 @@ function CharCard({ char }: { char: Character }) {
     >
       <div className="flex items-center gap-2.5 mb-2.5">
         <div className="relative">
-          <Avatar name={char.name} color={char.color} size="md" />
+          <Avatar src={char.avatar} name={char.name} color={char.color} size="md" />
           <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#161616] ${char.online ? 'bg-green-400' : 'bg-white/20'}`} />
         </div>
         <div className="flex-1 min-w-0">

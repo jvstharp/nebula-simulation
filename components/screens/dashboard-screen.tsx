@@ -486,7 +486,7 @@ function ProjectOverviewPanel() {
               display: 'flex', alignItems: 'center', gap: 12,
               padding: '8px 12px', ...cardStyle,
             }}>
-              <Avatar name={c.name} color={c.color} size="sm" />
+              <Avatar src={c.avatar} name={c.name} color={c.color} size="sm" />
               <span style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.65)', flex: 1 }}>{c.name}</span>
               <span style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.28)' }}>{c.title}</span>
             </div>

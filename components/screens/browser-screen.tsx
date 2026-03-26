@@ -6,7 +6,7 @@ import type { BrowserTab, SimulationStage } from "@/lib/types";
 import { SectionHeader, cardStyle, cardHoverIn, cardHoverOut } from "@/components/layout/discovery-ui";
 import { AnalyticsPanel } from "@/components/simulation/analytics-panel";
 import { OKRPanel } from "@/components/simulation/okr-panel";
-import { MOCK_ANALYTICS } from "@/lib/data";
+import { MOCK_ANALYTICS, USER_AVATAR } from "@/lib/data";
 
 /* ── Tab icon SVGs ──────────────────────────────────────────────────────────── */
 function MailTabIcon() {
@@ -277,13 +277,11 @@ function EmailTab() {
               borderLeft: isSelected ? '3px solid #147b58' : '3px solid transparent',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                <div style={{
-                  width: 28, height: 28, borderRadius: '50%',
-                  background: char?.color ?? '#6b7280', flexShrink: 0,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, fontWeight: 700, color: '#efefef',
-                }}>
-                  {char?.avatar ?? id[0].toUpperCase()}
+                <div style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', background: char?.color ?? '#6b7280' }}>
+                  {char?.avatar
+                    ? <img src={char.avatar} alt={char.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> // eslint-disable-line @next/next/no-img-element
+                    : <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', fontSize: 11, fontWeight: 700, color: '#efefef' }}>{id[0].toUpperCase()}</span>
+                  }
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -325,13 +323,9 @@ function EmailTab() {
                 const sender = isMe ? null : charMap[String(msg.from)];
                 return (
                   <div key={msg.id} style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-                    <div style={{
-                      width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-                      background: isMe ? '#147b58' : (sender?.color ?? '#6b7280'),
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 12, fontWeight: 700, color: '#efefef',
-                    }}>
-                      {isMe ? 'Me' : (sender?.avatar ?? '?')}
+                    <div style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', background: isMe ? '#147b58' : (sender?.color ?? '#6b7280') }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={isMe ? USER_AVATAR : (sender?.avatar ?? '')} alt={isMe ? 'You' : sender?.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -441,12 +435,12 @@ function EmailTab() {
 /* ── CHAT TAB ───────────────────────────────────────────────────────────────── */
 const CHANNELS = ['general', 'product', 'engineering', 'design', 'announcements'];
 const CHAT_MESSAGES = [
-  { id: 1, author: 'Sarah Chen', color: '#0891b2', time: '9:02 AM', text: 'Morning team 👋 Quick heads-up: the metrics dashboard is showing anomalies in the activation funnel. Will send a detailed writeup shortly.' },
-  { id: 2, author: 'Marcus Lee', color: '#dc2626', time: '9:08 AM', text: 'Saw that too. Engineering is already investigating. Might be the new segment tag rollout.' },
-  { id: 3, author: 'Priya Sharma', color: '#d97706', time: '9:14 AM', text: 'Can we make sure UX is looped in before any rollback? Last time we lost 2 weeks of design work.' },
-  { id: 4, author: 'You', color: '#147b58', time: '9:22 AM', text: "Agreed. Let's do a quick 15-min sync at 10am — Sarah, Marcus, Priya. I'll send a calendar hold.", isMe: true },
-  { id: 5, author: 'Sarah Chen', color: '#0891b2', time: '9:23 AM', text: '✅ Works for me' },
-  { id: 6, author: 'Marcus Lee', color: '#dc2626', time: '9:24 AM', text: "10am works. I'll have the preliminary root-cause analysis ready." },
+  { id: 1, author: 'Sarah Chen', color: '#0891b2', avatar: 'https://randomuser.me/api/portraits/women/44.jpg', time: '9:02 AM', text: 'Morning team 👋 Quick heads-up: the metrics dashboard is showing anomalies in the activation funnel. Will send a detailed writeup shortly.' },
+  { id: 2, author: 'Marcus Lee', color: '#dc2626', avatar: 'https://randomuser.me/api/portraits/men/32.jpg', time: '9:08 AM', text: 'Saw that too. Engineering is already investigating. Might be the new segment tag rollout.' },
+  { id: 3, author: 'Priya Sharma', color: '#d97706', avatar: 'https://randomuser.me/api/portraits/women/56.jpg', time: '9:14 AM', text: 'Can we make sure UX is looped in before any rollback? Last time we lost 2 weeks of design work.' },
+  { id: 4, author: 'You', color: '#147b58', avatar: USER_AVATAR, time: '9:22 AM', text: "Agreed. Let's do a quick 15-min sync at 10am — Sarah, Marcus, Priya. I'll send a calendar hold.", isMe: true },
+  { id: 5, author: 'Sarah Chen', color: '#0891b2', avatar: 'https://randomuser.me/api/portraits/women/44.jpg', time: '9:23 AM', text: '✅ Works for me' },
+  { id: 6, author: 'Marcus Lee', color: '#dc2626', avatar: 'https://randomuser.me/api/portraits/men/32.jpg', time: '9:24 AM', text: "10am works. I'll have the preliminary root-cause analysis ready." },
 ];
 
 function ChatTab() {
@@ -527,11 +521,10 @@ function ChatTab() {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ position: 'relative', flexShrink: 0 }}>
-                  <div style={{
-                    width: 22, height: 22, borderRadius: '50%', background: char.color,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 9, fontWeight: 700, color: '#efefef',
-                  }}>{char.avatar}</div>
+                  <div style={{ width: 22, height: 22, borderRadius: '50%', overflow: 'hidden', flexShrink: 0 }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={char.avatar} alt={char.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
                   <div style={{
                     position: 'absolute', bottom: 0, right: 0, width: 7, height: 7, borderRadius: '50%',
                     border: '1.5px solid #0a0a0c',
@@ -561,10 +554,10 @@ function ChatTab() {
               background: '#212121', border: '1px solid rgba(255,255,255,0.08)',
               borderRadius: 6, padding: '3px 8px', fontSize: 11, color: '#afa39f', cursor: 'pointer',
             }}>← Back</button>
-            <div style={{
-              width: 28, height: 28, borderRadius: '50%', background: charMap[activeDMId]?.color ?? '#6b7280',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#efefef',
-            }}>{charMap[activeDMId]?.avatar}</div>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', overflow: 'hidden', flexShrink: 0 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={charMap[activeDMId]?.avatar} alt={charMap[activeDMId]?.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            </div>
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#efefef' }}>{charMap[activeDMId]?.name}</div>
               <div style={{ fontSize: 10.5, color: '#afa39f' }}>{charMap[activeDMId]?.title}</div>
@@ -580,13 +573,9 @@ function ChatTab() {
               const char = charMap[activeDMId];
               return (
                 <div key={msg.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                  <div style={{
-                    width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-                    background: isMe ? '#147b58' : (char?.color ?? '#6b7280'),
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 12, fontWeight: 700, color: '#efefef',
-                  }}>
-                    {isMe ? 'Me' : char?.avatar}
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, overflow: 'hidden' }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={isMe ? USER_AVATAR : char?.avatar} alt={isMe ? 'You' : char?.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 3 }}>
@@ -633,8 +622,9 @@ function ChatTab() {
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             {CHAT_MESSAGES.map(msg => (
               <div key={msg.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                <div style={{ width: 32, height: 32, borderRadius: '50%', background: msg.color, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#efefef' }}>
-                  {msg.author.charAt(0)}
+                <div style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, overflow: 'hidden' }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={msg.avatar} alt={msg.author} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 3 }}>
@@ -1429,12 +1419,10 @@ function WriterPanel() {
                       onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'; }}
                       onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                     >
-                      <div style={{
-                        width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
-                        background: char.color + '22', border: `1px solid ${char.color}55`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 9, fontWeight: 700, color: char.color,
-                      }}>{char.avatar}</div>
+                      <div style={{ width: 26, height: 26, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', border: `1px solid ${char.color}55` }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={char.avatar} alt={char.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 12, fontWeight: 600, color: isSelected ? '#efefef' : '#afa39f' }}>{char.name}</div>
                         <div style={{ fontSize: 10, color: 'rgba(175,163,159,0.4)' }}>{char.title}</div>
@@ -2657,9 +2645,9 @@ function MissionControlTab() {
                       transition: 'background 120ms', marginBottom: 4 }}>
                     {/* Top row: avatar + name/title + trust% */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: cs.avatarBg,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, color: '#fff' }}>{cs.initials}</span>
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, overflow: 'hidden' }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={char.avatar} alt={char.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 12, fontWeight: 600, color: '#e5e7eb', whiteSpace: 'nowrap',
@@ -2866,8 +2854,9 @@ function MissionControlTab() {
                   onMouseEnter={e => cardHoverIn(e.currentTarget)}
                   onMouseLeave={e => cardHoverOut(e.currentTarget)}
                 >
-                  <div style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, background: char.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#efefef', position: 'relative' }}>
-                    {char.avatar}
+                  <div style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', position: 'relative' }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={char.avatar} alt={char.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     <div style={{ position: 'absolute', bottom: 0, right: 0, width: 9, height: 9, borderRadius: '50%', background: char.online ? '#22c55e' : '#6b7280', border: '1.5px solid #18181c' }} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -3040,8 +3029,9 @@ function MissionControlTab() {
               <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${detailChar.color}, transparent)` }} />
               <div style={{ padding: '20px 22px' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 13, marginBottom: 16 }}>
-                  <div style={{ width: 46, height: 46, borderRadius: '50%', flexShrink: 0, background: detailChar.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, color: '#efefef', position: 'relative' }}>
-                    {detailChar.avatar}
+                  <div style={{ width: 46, height: 46, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', position: 'relative' }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={detailChar.avatar} alt={detailChar.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     <div style={{ position: 'absolute', bottom: 1, right: 1, width: 11, height: 11, borderRadius: '50%', background: detailChar.online ? '#22c55e' : '#6b7280', border: '2px solid #13131a' }} />
                   </div>
                   <div style={{ flex: 1 }}>

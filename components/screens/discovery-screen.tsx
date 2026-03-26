@@ -25,12 +25,12 @@ const DISCOVERY_NAV = [
 
 // ── Data ───────────────────────────────────────────────────────────────────
 const COACHES = [
-  { id: 'c1', name: 'Priya Kapoor',    role: 'Senior PM Coach',       company: 'Ex-Google',    rate: '$180/hr', rating: 4.9, reviews: 142, available: true,  color: '#22d3ee', specialty: 'Product Strategy',   tags: ['Roadmapping', 'OKRs', 'B2B SaaS'],        bio: 'Former GPM at Google Search. Specialises in helping PMs build strategic clarity in ambiguous environments. Has coached 200+ product professionals across FAANG and high-growth startups.' },
-  { id: 'c2', name: 'Marcus Webb',     role: 'Leadership Coach',      company: 'Ex-McKinsey',  rate: '$220/hr', rating: 4.8, reviews:  89, available: true,  color: '#a78bfa', specialty: 'Executive Leadership', tags: ['Stakeholder Mgmt', 'C-Suite', 'Influence'], bio: 'Former engagement manager at McKinsey. Specialises in helping senior ICs transition to management and build executive presence. Known for practical, no-nonsense frameworks.' },
-  { id: 'c3', name: 'Aisha Okonkwo',  role: 'Product Coach',         company: 'Ex-Stripe',    rate: '$160/hr', rating: 4.9, reviews: 203, available: false, color: '#34d399', specialty: 'Fintech PM',           tags: ['Discovery', 'User Research', 'Metrics'],   bio: 'Led product for Stripe\'s developer tooling from 0→1. Deep expertise in fintech compliance, API-first products, and building rigorous discovery practices. Currently on sabbatical — limited spots.' },
-  { id: 'c4', name: 'Ben Nakamura',   role: 'Agile Coach',           company: 'Ex-Spotify',   rate: '$150/hr', rating: 4.7, reviews:  67, available: true,  color: '#60a5fa', specialty: 'Delivery & Agile',    tags: ['Scrum', 'Sprint Planning', 'Team Health'], bio: 'Scaled agile practices across Spotify\'s growth tribe. Helps teams cut planning waste, build healthy rituals, and ship faster without burning out.' },
-  { id: 'c5', name: 'Sofia Reyes',    role: 'UX Strategy Coach',     company: 'Ex-Figma',     rate: '$140/hr', rating: 4.8, reviews: 115, available: true,  color: '#fbbf24', specialty: 'UX Leadership',       tags: ['Design Systems', 'Research', 'Vision'],    bio: 'Built Figma\'s first design systems team. Helps PMs and designers work together effectively and translate user research into product direction.' },
-  { id: 'c6', name: 'James Obi',      role: 'Data PM Coach',         company: 'Ex-Airbnb',    rate: '$170/hr', rating: 4.6, reviews:  54, available: false, color: '#fb923c', specialty: 'Data & Growth',       tags: ['A/B Testing', 'SQL', 'Growth Loops'],      bio: 'Growth PM at Airbnb for 4 years, focusing on supply-side conversion. Teaches data-literate PM thinking: from metric trees to experiment design to instrumentation.' },
+  { id: 'c1', name: 'Priya Kapoor',    role: 'Senior PM Coach',       company: 'Ex-Google',    rate: '$180/hr', rating: 4.9, reviews: 142, available: true,  color: '#22d3ee', specialty: 'Product Strategy',   tags: ['Roadmapping', 'OKRs', 'B2B SaaS'],        bio: 'Former GPM at Google Search. Specialises in helping PMs build strategic clarity in ambiguous environments. Has coached 200+ product professionals across FAANG and high-growth startups.',   avatar: 'https://randomuser.me/api/portraits/women/67.jpg' },
+  { id: 'c2', name: 'Marcus Webb',     role: 'Leadership Coach',      company: 'Ex-McKinsey',  rate: '$220/hr', rating: 4.8, reviews:  89, available: true,  color: '#a78bfa', specialty: 'Executive Leadership', tags: ['Stakeholder Mgmt', 'C-Suite', 'Influence'], bio: 'Former engagement manager at McKinsey. Specialises in helping senior ICs transition to management and build executive presence. Known for practical, no-nonsense frameworks.',                   avatar: 'https://randomuser.me/api/portraits/men/45.jpg' },
+  { id: 'c3', name: 'Aisha Okonkwo',  role: 'Product Coach',         company: 'Ex-Stripe',    rate: '$160/hr', rating: 4.9, reviews: 203, available: false, color: '#34d399', specialty: 'Fintech PM',           tags: ['Discovery', 'User Research', 'Metrics'],   bio: 'Led product for Stripe\'s developer tooling from 0→1. Deep expertise in fintech compliance, API-first products, and building rigorous discovery practices. Currently on sabbatical — limited spots.', avatar: 'https://randomuser.me/api/portraits/women/25.jpg' },
+  { id: 'c4', name: 'Ben Nakamura',   role: 'Agile Coach',           company: 'Ex-Spotify',   rate: '$150/hr', rating: 4.7, reviews:  67, available: true,  color: '#60a5fa', specialty: 'Delivery & Agile',    tags: ['Scrum', 'Sprint Planning', 'Team Health'], bio: 'Scaled agile practices across Spotify\'s growth tribe. Helps teams cut planning waste, build healthy rituals, and ship faster without burning out.',                                             avatar: 'https://randomuser.me/api/portraits/men/18.jpg' },
+  { id: 'c5', name: 'Sofia Reyes',    role: 'UX Strategy Coach',     company: 'Ex-Figma',     rate: '$140/hr', rating: 4.8, reviews: 115, available: true,  color: '#fbbf24', specialty: 'UX Leadership',       tags: ['Design Systems', 'Research', 'Vision'],    bio: 'Built Figma\'s first design systems team. Helps PMs and designers work together effectively and translate user research into product direction.',                                              avatar: 'https://randomuser.me/api/portraits/women/38.jpg' },
+  { id: 'c6', name: 'James Obi',      role: 'Data PM Coach',         company: 'Ex-Airbnb',    rate: '$170/hr', rating: 4.6, reviews:  54, available: false, color: '#fb923c', specialty: 'Data & Growth',       tags: ['A/B Testing', 'SQL', 'Growth Loops'],      bio: 'Growth PM at Airbnb for 4 years, focusing on supply-side conversion. Teaches data-literate PM thinking: from metric trees to experiment design to instrumentation.',                          avatar: 'https://randomuser.me/api/portraits/men/62.jpg' },
 ];
 
 const WORKPLACES = [
@@ -424,9 +424,8 @@ function HomeView({ onNav, onSelect }: { onNav: (id: string) => void; onSelect: 
               onMouseLeave={e => cardHoverOut(e.currentTarget)}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, background: `${c.color}22`, border: `1.5px solid ${c.color}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: c.color }}>
-                  {c.name.split(' ').map(n => n[0]).join('')}
-                </div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={(c as any).avatar} alt={c.name} style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: `1.5px solid ${c.color}55` }} />
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 12.5, fontWeight: 600, color: '#f0f0f3', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
                   <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{c.company}</div>
@@ -451,8 +450,8 @@ function HomeView({ onNav, onSelect }: { onNav: (id: string) => void; onSelect: 
           <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>Featured Workplaces</span>
           <button onClick={() => onNav('workplaces')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: G, fontFamily: 'inherit', fontWeight: 500 }}>See all →</button>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-          {WORKPLACES.slice(0, 2).map(w => (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+          {WORKPLACES.slice(0, 3).map(w => (
             <WorkplaceCard key={w.id} w={w} onSelect={onSelect} compact />
           ))}
         </div>
@@ -503,12 +502,8 @@ function CoachesView({ search, onSelect }: { search: string; onSelect: (item: An
             onMouseLeave={e => cardHoverOut(e.currentTarget)}
           >
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
-              <div style={{
-                width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-                background: `${c.color}22`, border: `2px solid ${c.color}55`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 14, fontWeight: 700, color: c.color,
-              }}>{c.name.split(' ').map(n => n[0]).join('')}</div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={(c as any).avatar} alt={c.name} style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: `2px solid ${c.color}55` }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#f0f0f3' }}>{c.name}</div>
                 <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.45)', marginTop: 1 }}>{c.role}</div>
@@ -680,6 +675,7 @@ function WorkplacesView({ search, onSelect }: { search: string; onSelect: (item:
         display: 'grid',
         gridTemplateColumns: 'repeat(3, 1fr)',
         gap: 14,
+        maxWidth: 820,
       }}>
         {filtered.map(w => (
           <WorkplaceCard key={w.id} w={w} onSelect={onSelect} />

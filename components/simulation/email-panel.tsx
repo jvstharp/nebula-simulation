@@ -5,24 +5,35 @@ import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { CHARACTERS } from "@/lib/data";
+import { CHARACTERS, USER_AVATAR } from "@/lib/data";
 import type { Message, Character } from "@/lib/types";
 
-function EmailRow({ msg, chars, onClick, selected }: { msg: Message; chars: Character[]; onClick: () => void; selected: boolean }) {
+function getUrgencyColor(msg: Message, elapsedSeconds: number): string {
+  if (msg.from === 'user' || msg.read) return 'transparent';
+  if (msg.from === 'elena') return '#ef4444bb';
+  if (msg.from === 'tom' && elapsedSeconds > 300) return '#f97316aa';
+  if (!msg.read && elapsedSeconds > 420) return '#deaf4966';
+  return 'transparent';
+}
+
+function EmailRow({ msg, chars, onClick, selected, elapsedSeconds }: { msg: Message; chars: Character[]; onClick: () => void; selected: boolean; elapsedSeconds: number }) {
   const sender = msg.from === 'user' ? null : chars.find(c => c.id === msg.from);
   const timeStr = msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const urgencyColor = getUrgencyColor(msg, elapsedSeconds);
   return (
     <button
       onClick={onClick}
       className={`w-full text-left flex items-start gap-3 px-3 py-3 hover:bg-white/4 transition-colors border-b border-white/4 ${selected ? 'bg-white/6' : ''} ${!msg.read && msg.from !== 'user' ? 'relative' : ''}`}
+      style={{ borderLeft: `3px solid ${urgencyColor}`, transition: 'border-color 0.5s ease' }}
     >
       {!msg.read && msg.from !== 'user' && (
         <span className="absolute left-1 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-blue-400" />
       )}
       {sender ? (
-        <Avatar name={sender.name} color={sender.color} size="sm" />
+        <Avatar src={sender.avatar} name={sender.name} color={sender.color} size="sm" />
       ) : (
-        <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-xs text-white/40">You</div>
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={USER_AVATAR} alt="You" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, opacity: 0.7 }} />
       )}
       <div className="flex-1 min-w-0">
         <div className="flex justify-between items-baseline">
@@ -38,7 +49,8 @@ function EmailRow({ msg, chars, onClick, selected }: { msg: Message; chars: Char
 }
 
 export function EmailPanel() {
-  const { messages, sendMessage, setActiveCharacter, characters } = useAppStore();
+  const { messages, sendMessage, setActiveCharacter, characters, session } = useAppStore();
+  const elapsedSeconds = session?.elapsedSeconds ?? 0;
   const emailMsgs = messages.filter(m => m.channel === 'email');
   const [selectedId, setSelectedId] = useState<string | null>(emailMsgs[0]?.id ?? null);
   const [composing, setComposing] = useState(false);
@@ -70,7 +82,7 @@ export function EmailPanel() {
             <p className="text-xs text-white/25 text-center py-8">No emails yet</p>
           ) : (
             emailMsgs.map(m => (
-              <EmailRow key={m.id} msg={m} chars={characters} onClick={() => setSelectedId(m.id)} selected={selectedId === m.id} />
+              <EmailRow key={m.id} msg={m} chars={characters} onClick={() => setSelectedId(m.id)} selected={selectedId === m.id} elapsedSeconds={elapsedSeconds} />
             ))
           )}
         </div>
@@ -98,7 +110,7 @@ export function EmailPanel() {
               <div className="flex items-center gap-2 mt-2">
                 {selected.from !== 'user' && (() => {
                   const c = characters.find(ch => ch.id === selected.from);
-                  return c ? <><Avatar name={c.name} color={c.color} size="sm" /><span className="text-xs text-white/50">{c.name} · {c.title}</span></> : null;
+                  return c ? <><Avatar src={c.avatar} name={c.name} color={c.color} size="sm" /><span className="text-xs text-white/50">{c.name} · {c.title}</span></> : null;
                 })()}
               </div>
             </div>

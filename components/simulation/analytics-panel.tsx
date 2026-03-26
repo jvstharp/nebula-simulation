@@ -1,5 +1,7 @@
 "use client";
+import { useRef } from "react";
 import { MOCK_ANALYTICS, MOCK_NEWS } from "@/lib/data";
+import { useAppStore } from "@/lib/store";
 import { AreaChart, Area, ResponsiveContainer, Tooltip } from "recharts";
 
 const CHART_DATA = Array.from({ length: 14 }, (_, i) => ({
@@ -8,10 +10,14 @@ const CHART_DATA = Array.from({ length: 14 }, (_, i) => ({
   churn: 3.5 + Math.random() * 1.5,
 }));
 
-function MetricCard({ label, value, delta, unit = '' }: { label: string; value: string | number; delta: number; unit?: string; color?: string }) {
+function MetricCard({ label, value, delta, unit = '', flash }: { label: string; value: string | number; delta: number; unit?: string; color?: string; flash?: boolean }) {
   const positive = delta > 0;
   return (
-    <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)', padding: 12 }}>
+    <div style={{
+      background: flash ? 'rgba(34,197,94,0.06)' : 'rgba(255,255,255,0.03)',
+      borderRadius: 10, border: `1px solid ${flash ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.06)'}`,
+      padding: 12, transition: 'all 0.6s ease',
+    }}>
       <div style={{ fontSize: 10, color: 'rgba(175,163,159,0.5)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
       <div style={{ fontSize: 17, fontWeight: 600, color: '#efefef', lineHeight: 1 }}>{value}{unit}</div>
       <div style={{ fontSize: 11, marginTop: 4, color: positive ? '#22c55e' : '#f87171' }}>
@@ -22,16 +28,36 @@ function MetricCard({ label, value, delta, unit = '' }: { label: string; value: 
 }
 
 export function AnalyticsPanel() {
+  const { session } = useAppStore();
+  const dyn = session?.dynamicAnalytics;
+
+  // Track prev values to detect changes
+  const prevRef = useRef(dyn);
+  const npsFlash = dyn && prevRef.current && dyn.nps !== prevRef.current.nps;
+  const convFlash = dyn && prevRef.current && dyn.trialConversion !== prevRef.current.trialConversion;
+  prevRef.current = dyn;
+
+  const nps = dyn?.nps ?? MOCK_ANALYTICS.nps.value;
+  const churn = dyn?.churn ?? MOCK_ANALYTICS.churn.value;
+  const velocity = dyn?.velocity ?? MOCK_ANALYTICS.velocity.value;
+  const dau = dyn?.dau ?? MOCK_ANALYTICS.dau.value;
+
+  const npsDelta = nps - MOCK_ANALYTICS.nps.value;
+  const churnDelta = churn - MOCK_ANALYTICS.churn.value;
+  const velocityDelta = velocity - MOCK_ANALYTICS.velocity.value;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto', padding: 12, gap: 16 }}>
       {/* KPI grid */}
       <div>
-        <div style={{ fontSize: 10, fontWeight: 600, color: 'rgba(175,163,159,0.5)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Key Metrics</div>
+        <div style={{ fontSize: 10, fontWeight: 600, color: 'rgba(175,163,159,0.5)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
+          Key Metrics {session && <span style={{ color: 'rgba(34,197,94,0.6)', fontWeight: 400 }}>· live</span>}
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <MetricCard label="Daily Active Users" value={MOCK_ANALYTICS.dau.value.toLocaleString()} delta={MOCK_ANALYTICS.dau.delta} />
-          <MetricCard label="Monthly Churn" value={MOCK_ANALYTICS.churn.value} delta={MOCK_ANALYTICS.churn.delta} unit="%" />
-          <MetricCard label="NPS Score" value={MOCK_ANALYTICS.nps.value} delta={MOCK_ANALYTICS.nps.delta} />
-          <MetricCard label="Sprint Velocity" value={MOCK_ANALYTICS.velocity.value} delta={MOCK_ANALYTICS.velocity.delta} unit="%" />
+          <MetricCard label="Daily Active Users" value={dau.toLocaleString()} delta={MOCK_ANALYTICS.dau.delta} />
+          <MetricCard label="Monthly Churn" value={churn.toFixed(1)} delta={churnDelta} unit="%" />
+          <MetricCard label="NPS Score" value={nps} delta={npsDelta || MOCK_ANALYTICS.nps.delta} flash={!!npsFlash} />
+          <MetricCard label="Sprint Velocity" value={velocity} delta={velocityDelta || MOCK_ANALYTICS.velocity.delta} unit="%" />
         </div>
       </div>
 

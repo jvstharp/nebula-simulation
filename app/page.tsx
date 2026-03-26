@@ -11,6 +11,10 @@ import { DiscoveryScreen } from "@/components/screens/discovery-screen";
 import { BrowserScreen } from "@/components/screens/browser-screen";
 import { VaultScreen } from "@/components/screens/vault-screen";
 import { ProfileScreen } from "@/components/screens/profile-screen";
+import { MissionBriefingScreen } from "@/components/screens/mission-briefing-screen";
+import { OfficeIntroScreen } from "@/components/screens/office-intro-screen";
+import { PrologueScreen } from "@/components/screens/prologue-screen";
+import { BoardMeetingScreen } from "@/components/screens/board-meeting-screen";
 import { ControlPanelPopover } from "@/components/screens/control-panel-screen";
 import { ChaosOverlay } from "@/components/screens/chaos-overlay";
 
@@ -57,8 +61,12 @@ export default function Home() {
     <>
       {screen === 'login'      && <LoginScreen />}
       {screen === 'register'   && <LoginScreen />}
-      {screen === 'onboarding' && <OnboardingScreen />}
-      {screen === 'assessment' && <AssessmentScreen />}
+      {screen === 'onboarding'       && <OnboardingScreen />}
+      {screen === 'mission-briefing' && <MissionBriefingScreen />}
+      {screen === 'assessment'       && <AssessmentScreen />}
+      {screen === 'office-intro'     && <OfficeIntroScreen />}
+      {screen === 'prologue'         && <PrologueScreen />}
+      {screen === 'board-meeting'    && <BoardMeetingScreen />}
       {/* Desktop is always the background when in desktop or app mode */}
       {(screen === 'desktop' || isApp) && <DesktopScreen />}
       {screen === 'dashboard'  && <DashboardScreen />}

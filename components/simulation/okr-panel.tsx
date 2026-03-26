@@ -184,7 +184,7 @@ export function OKRPanel() {
 
         {session.status === 'active' && (
           <button
-            onClick={() => { completeSession(); setScreen('replay'); }}
+            onClick={() => { completeSession(); setScreen('board-meeting'); }}
             style={{
               width: '100%', padding: '9px', borderRadius: 10, cursor: 'pointer',
               background: 'rgba(20,123,88,0.15)',

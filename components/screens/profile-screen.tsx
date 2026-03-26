@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useAppStore } from "@/lib/store";
 import { AppWindow } from "@/components/layout/app-window";
+import { RelationshipWeb } from "@/components/simulation/relationship-web";
 
 /* ── Design tokens (new system) ─────────────────────────────────────────────── */
 const T = {
@@ -133,7 +134,7 @@ const NEBULA_STATS = [
   { label: 'Stakeholder Trust',    value: '0.81', suffix: 'avg',   color: '#02ba67',  icon: '🤝', desc: 'Average colleague trust score' },
 ];
 
-const NAV_ITEMS = ['Overview', 'Badges', 'Certificates', 'Records'];
+const NAV_ITEMS = ['Overview', 'Trust Network', 'Badges', 'Certificates', 'Records'];
 
 /* ── Profile Screen ─────────────────────────────────────────────────────────── */
 export function ProfileScreen() {
@@ -623,6 +624,19 @@ export function ProfileScreen() {
                 </div>
               </div>
 
+            </div>
+          )}
+
+          {/* TRUST NETWORK */}
+          {activeNav === 'Trust Network' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <SectionHdr title="Trust Network" />
+                <p style={{ fontSize: 13, color: T.muted, margin: 0 }}>Live relationship map — updates as you interact during simulation</p>
+              </div>
+              <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: 16 }}>
+                <RelationshipWeb />
+              </div>
             </div>
           )}
 

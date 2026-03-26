@@ -1,12 +1,41 @@
 import { create } from 'zustand';
-import { Character, Message, SessionState, Screen, AppTab, BrowserTab, ChaosEvent, OKR, PortfolioCaseStudy, AccessibilityPrefs, SimulationStage } from './types';
-import { CHARACTERS, INITIAL_SESSION, INITIAL_MESSAGES, INITIAL_OKRS, REPLY_MAP } from './data';
+import { Character, Message, SessionState, Screen, AppTab, BrowserTab, ChaosEvent, OKR, PortfolioCaseStudy, AccessibilityPrefs, SimulationStage, SimPreferences, CharacterId, DifficultyLevel, DecisionNode, DebriefItem, DynamicAnalytics } from './types';
+import { CHARACTERS, INITIAL_SESSION, INITIAL_MESSAGES, INITIAL_OKRS, REPLY_MAP, CHARACTER_SECRETS, CASCADE_EVENTS, CHAOS_EVENT_POOL, DIFFICULTY_CONFIG, MOCK_ANALYTICS } from './data';
 import { getSoundscape } from './soundscape';
 
 export interface MinimizedWindow {
   screen: Screen;
   label: string;
   accentColor: string;
+}
+
+function computeDifficulty(simPrefs: SimPreferences | null): DifficultyLevel {
+  const exp = (simPrefs?.experienceLevel ?? '').toLowerCase();
+  if (
+    exp.includes('0') || exp.includes('1 year') || exp.includes('student') ||
+    exp.includes('junior') || exp.includes('intern') || exp.includes('entry')
+  ) return 'guided';
+  if (
+    exp.includes('5') || exp.includes('6') || exp.includes('7') || exp.includes('8') ||
+    exp.includes('9') || exp.includes('10') || exp.includes('senior') ||
+    exp.includes('director') || exp.includes('vp') || exp.includes('head of')
+  ) return 'pressure';
+  return 'standard';
+}
+
+function computeMetricsDrift(characters: Character[], chaosCount: number): DynamicAnalytics {
+  const priya = characters.find(c => c.id === 'priya');
+  const marcus = characters.find(c => c.id === 'marcus');
+  const pTrust = priya?.trust ?? 0.68;
+  const mTrust = marcus?.trust ?? 0.51;
+
+  return {
+    nps: Math.round(42 + (pTrust - 0.68) * 45),
+    trialConversion: Math.round(23 + (pTrust - 0.68) * 18),
+    velocity: Math.round(84 + (mTrust - 0.51) * 35),
+    churn: Math.max(1, parseFloat((4.2 + chaosCount * 0.5 - (mTrust - 0.51) * 1.5).toFixed(1))),
+    dau: Math.round(12400 + (pTrust - 0.68) * 800),
+  };
 }
 
 interface AppStore {
@@ -22,7 +51,7 @@ interface AppStore {
   restoreWindow: (screen: Screen) => void;
 
   // Auth
-  user: { name: string; email: string; credits: number } | null;
+  user: { name: string; email: string; credits: number; avatar: string } | null;
   setUser: (u: AppStore['user']) => void;
 
   // Simulation
@@ -32,6 +61,10 @@ interface AppStore {
   activeCharacter: Character | null;
   chatInput: string;
   chaosOverlay: ChaosEvent | null;
+
+  // Voice mode
+  voiceMode: boolean;
+  setVoiceMode: (v: boolean) => void;
 
   // Control Panel popover
   controlPanelOpen: boolean;
@@ -53,16 +86,21 @@ interface AppStore {
   updateOKR: (id: string, progress: number) => void;
   pauseSession: () => void;
   resumeSession: () => void;
-  receiveReply: (characterId: string, body: string, trustDelta: number) => void;
+  receiveReply: (characterId: string, body: string, trustDelta: number, userMessage?: string) => void;
   completeSession: () => void;
   advanceToExecution: (planScore: number, planFeedback: string) => void;
   advanceToReporting: () => void;
+  generateDebrief: () => void;
 
   // Onboarding
   onboardingStep: number;
   assessmentAnswers: number[];
   setOnboardingStep: (n: number) => void;
   setAssessmentAnswer: (i: number, v: number) => void;
+
+  // Sim preferences (set during chat onboarding)
+  simPreferences: SimPreferences | null;
+  setSimPreferences: (prefs: SimPreferences) => void;
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -94,6 +132,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
   chatInput: '',
   chaosOverlay: null,
 
+  voiceMode: false,
+  setVoiceMode: (voiceMode) => set({ voiceMode }),
+
   controlPanelOpen: false,
   setControlPanelOpen: (open) => set({ controlPanelOpen: open }),
 
@@ -103,18 +144,33 @@ export const useAppStore = create<AppStore>((set, get) => ({
   })),
 
   startSession: () => {
+    const difficulty = computeDifficulty(get().simPreferences);
     set({
-      session: { ...INITIAL_SESSION, startedAt: new Date(), chaosTier: null, chaosResolving: false, portfolio: null },
+      session: {
+        ...INITIAL_SESSION,
+        startedAt: new Date(),
+        chaosTier: null,
+        chaosResolving: false,
+        portfolio: null,
+        difficulty,
+        unlockedSecrets: [],
+        firedCascades: [],
+        firedChaosIds: [],
+        lastContactedAt: {},
+        decisionHistory: [],
+        dynamicAnalytics: { nps: 42, trialConversion: 23, velocity: 84, churn: 4.2, dau: 12400 },
+        debrief: null,
+      },
       messages: INITIAL_MESSAGES,
       characters: CHARACTERS,
     });
-    // Init soundscape on session start (will actually unlock on first user interaction)
     getSoundscape().init().catch(() => {});
   },
 
   sendMessage: (body, channel, subject) => {
-    const { activeCharacter, messages } = get();
+    const { activeCharacter, messages, session, characters } = get();
     if (!activeCharacter) return;
+
     const msg: Message = {
       id: Math.random().toString(36).slice(2),
       from: 'user',
@@ -125,15 +181,51 @@ export const useAppStore = create<AppStore>((set, get) => ({
       timestamp: new Date(),
       read: true,
     };
-    set({ messages: [...messages, msg] });
 
-    // Simulate AI reply
-    setTimeout(() => {
-      const replies = REPLY_MAP[activeCharacter.id] || [];
-      const reply = replies[Math.floor(Math.random() * replies.length)] || "I'll get back to you on this.";
-      const trustDelta = (Math.random() - 0.3) * 0.1;
-      get().receiveReply(activeCharacter.id, reply, trustDelta);
-    }, 1500 + Math.random() * 2000);
+    // Track last contacted time
+    const updatedSession = session ? {
+      ...session,
+      lastContactedAt: { ...session.lastContactedAt, [activeCharacter.id]: session.elapsedSeconds },
+    } : session;
+
+    set({ messages: [...messages, msg], session: updatedSession });
+
+    // Capture for delay reference
+    const charSnapshot = { ...activeCharacter };
+    const delay = 1500 + Math.random() * 1500;
+
+    // Try AI-powered reply, fall back to REPLY_MAP
+    const recentMsgs = [...messages, msg]
+      .filter(m => (m.from === charSnapshot.id || m.to === charSnapshot.id) && m.channel === channel)
+      .slice(-6);
+
+    const trustDelta = (Math.random() - 0.3) * 0.1 +
+      (session ? DIFFICULTY_CONFIG[session.difficulty].trustDeltaBoost : 0);
+
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        characterName: charSnapshot.name,
+        characterTitle: charSnapshot.title,
+        personality: charSnapshot.personality,
+        visibleAgenda: charSnapshot.visibleAgenda,
+        trust: charSnapshot.trust,
+        conversationHistory: recentMsgs,
+        userMessage: body,
+      }),
+    })
+      .then(r => r.json())
+      .then(({ reply }) => {
+        setTimeout(() => {
+          get().receiveReply(charSnapshot.id, reply || getFallbackReply(charSnapshot.id), trustDelta, body);
+        }, delay);
+      })
+      .catch(() => {
+        setTimeout(() => {
+          get().receiveReply(charSnapshot.id, getFallbackReply(charSnapshot.id), trustDelta, body);
+        }, delay);
+      });
   },
 
   setActiveCharacter: (activeCharacter) => set({ activeCharacter }),
@@ -142,13 +234,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
   acknowledgeChaos: () => {
     const session = get().session;
     if (!session) return;
-    // Begin 45s visual wind-down
     set({
       chaosOverlay: null,
       session: { ...session, chaosMode: 'normal', chaosResolving: true },
     });
     getSoundscape().beginWindDown();
-    // Clear resolving state after 45s
     setTimeout(() => {
       set(s => ({
         session: s.session ? { ...s.session, chaosTier: null, chaosResolving: false } : null,
@@ -160,11 +250,53 @@ export const useAppStore = create<AppStore>((set, get) => ({
     messages: s.messages.map(m => m.id === messageId ? { ...m, read: true } : m),
   })),
 
-  tickSession: () => set(s => ({
-    session: s.session && s.session.status === 'active'
-      ? { ...s.session, elapsedSeconds: s.session.elapsedSeconds + 1 }
-      : s.session,
-  })),
+  tickSession: () => {
+    const { session, characters } = get();
+    if (!session || session.status !== 'active') return;
+
+    const newElapsed = session.elapsedSeconds + 1;
+
+    // Check cascade triggers every 5 seconds
+    if (newElapsed % 5 === 0) {
+      const config = DIFFICULTY_CONFIG[session.difficulty];
+      const sessionForCheck = { ...session, elapsedSeconds: newElapsed };
+
+      for (const cascade of CASCADE_EVENTS) {
+        // Apply difficulty multiplier to cascade thresholds
+        const adjustedSession = {
+          ...sessionForCheck,
+          // Slow cascades for guided, speed up for pressure
+          elapsedSeconds: Math.round(newElapsed / config.cascadeDelayMultiplier),
+        };
+        if (cascade.trigger(adjustedSession)) {
+          const cascadeMsg: Message = {
+            id: `cascade-${cascade.id}-${Date.now()}`,
+            from: cascade.characterId,
+            to: 'user',
+            channel: cascade.channel,
+            subject: cascade.subject,
+            body: cascade.message,
+            timestamp: new Date(),
+            read: false,
+          };
+          set(s => ({
+            messages: [...s.messages, cascadeMsg],
+            session: s.session ? {
+              ...s.session,
+              elapsedSeconds: newElapsed,
+              firedCascades: [...s.session.firedCascades, cascade.id],
+            } : s.session,
+          }));
+          getSoundscape().playNotificationPing?.();
+          return;
+        }
+      }
+    }
+
+    set(s => ({
+      session: s.session ? { ...s.session, elapsedSeconds: newElapsed } : s.session,
+    }));
+  },
 
   trustToast: null,
   setTrustToast: (trustToast) => set({ trustToast }),
@@ -194,54 +326,185 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ session: { ...session, status: 'active' } });
   },
 
-  receiveReply: (characterId, body, trustDelta) => {
-    const { messages, characters, session } = get();
+  receiveReply: (characterId, body, trustDelta, userMessage?) => {
+    const { messages, characters, session, voiceMode } = get();
     const char = characters.find(c => c.id === characterId);
     if (!char) return;
+
     const msg: Message = {
       id: Math.random().toString(36).slice(2),
-      from: characterId as any,
+      from: characterId as CharacterId,
       to: 'user',
       channel: 'chat',
       body,
       timestamp: new Date(),
       read: false,
     };
+
     const newTrust = Math.max(0.1, Math.min(0.95, char.trust + trustDelta));
+
+    // Build decision node if we have the original user message
+    const newDecisionNode: DecisionNode | null = userMessage ? {
+      id: `d-${Date.now()}`,
+      timestampSeconds: session?.elapsedSeconds ?? 0,
+      characterId: characterId as CharacterId,
+      userMessage,
+      characterReply: body,
+      trustBefore: char.trust,
+      trustAfter: newTrust,
+    } : null;
+
+    // Check for newly unlocked secrets
+    const secrets = CHARACTER_SECRETS[characterId as CharacterId] || [];
+    const newlyUnlocked = secrets.filter(s =>
+      session && !session.unlockedSecrets.includes(s.secretId) && newTrust >= s.threshold
+    );
+
+    // Compute metrics drift
+    const updatedChars = characters.map(c => c.id === characterId ? { ...c, trust: newTrust } : c);
+    const newAnalytics = session
+      ? computeMetricsDrift(updatedChars, session.chaosLog.length)
+      : null;
+
     set({
       messages: [...messages, msg],
-      characters: characters.map(c => c.id === characterId ? { ...c, trust: newTrust } : c),
+      characters: updatedChars,
       trustToast: { characterId, name: char.name, delta: trustDelta, newTrust },
+      session: session ? {
+        ...session,
+        decisionHistory: newDecisionNode ? [...session.decisionHistory, newDecisionNode] : session.decisionHistory,
+        dynamicAnalytics: newAnalytics ?? session.dynamicAnalytics,
+      } : session,
     });
 
-    // Auto-clear trust toast after 3.5s
+    // Auto-clear trust toast
     setTimeout(() => {
       set(s => s.trustToast?.characterId === characterId ? { trustToast: null } : {});
     }, 3500);
 
-    // Play notification ping
-    getSoundscape().playNotificationPing();
+    // TTS for voice mode
+    if (voiceMode && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(body);
+      utterance.rate = 0.95;
+      const pitchMap: Record<string, number> = { sarah: 1.1, marcus: 0.85, priya: 1.15, tom: 0.95, elena: 1.0 };
+      utterance.pitch = pitchMap[characterId] ?? 1.0;
+      window.speechSynthesis.speak(utterance);
+    }
 
-    // Maybe fire chaos (Tier 3 — engineer resignation, once per session)
-    if (session && !session.chaosLog.length && session.elapsedSeconds > 300 && Math.random() < 0.15) {
-      const tier = 3 as const;
-      const chaos: ChaosEvent = {
-        id: Math.random().toString(36).slice(2),
-        type: 'engineer_resignation',
-        title: 'URGENT: Team Alert',
-        description: 'A key engineer has submitted their resignation effective immediately. Engineering capacity is now at risk for the Q3 deadline.',
-        severity: 'critical',
-        tier,
-        firedAt: new Date(),
-        acknowledged: false,
-      };
-      set({
-        chaosOverlay: chaos,
-        session: { ...session, chaosMode: 'chaos', chaosTier: tier, chaosResolving: false, chaosLog: [...session.chaosLog, chaos] },
-        // All characters shift to alarmed state at Tier 3
-        characters: get().characters.map(c => ({ ...c, emotion: 'alarmed' as const })),
-      });
-      getSoundscape().setChaosState(tier);
+    getSoundscape().playNotificationPing?.();
+
+    // Inject unlocked secrets after a short delay
+    if (newlyUnlocked.length > 0 && session) {
+      const secret = newlyUnlocked[0];
+      setTimeout(() => {
+        const secretMsg: Message = {
+          id: `secret-${secret.secretId}-${Date.now()}`,
+          from: characterId as CharacterId,
+          to: 'user',
+          channel: 'chat',
+          body: secret.message,
+          timestamp: new Date(),
+          read: false,
+        };
+        set(s => ({
+          messages: [...s.messages, secretMsg],
+          session: s.session ? {
+            ...s.session,
+            unlockedSecrets: [...s.session.unlockedSecrets, secret.secretId],
+          } : s.session,
+        }));
+        getSoundscape().playNotificationPing?.();
+      }, 2200);
+    }
+
+    // Fire chaos events
+    if (session) {
+      const config = DIFFICULTY_CONFIG[session.difficulty];
+      const totalFired = session.firedChaosIds.length + (session.chaosLog.length > 0 ? 0 : 0);
+
+      if (
+        totalFired < config.maxChaosEvents &&
+        session.elapsedSeconds > config.chaosAfterSeconds &&
+        Math.random() < config.chaosChance
+      ) {
+        // Pick an eligible chaos event
+        const available = CHAOS_EVENT_POOL.filter(e =>
+          !session.firedChaosIds.includes(e.id) &&
+          session.elapsedSeconds >= e.minElapsed
+        );
+
+        if (available.length > 0) {
+          // Prefer Tier 3 if pressure mode and not yet fired, else random Tier 1/2
+          const candidates = session.difficulty === 'pressure'
+            ? available
+            : available.filter(e => e.tier < 3 || session.firedChaosIds.length === 0);
+
+          const pick = candidates[Math.floor(Math.random() * candidates.length)] || available[0];
+
+          const chaos: ChaosEvent = {
+            id: Math.random().toString(36).slice(2),
+            type: pick.type,
+            title: pick.title,
+            description: pick.description,
+            severity: pick.severity,
+            tier: pick.tier,
+            firedAt: new Date(),
+            acknowledged: false,
+          };
+
+          const allAlarmed = pick.tier === 3;
+
+          set(s => ({
+            chaosOverlay: chaos,
+            session: s.session ? {
+              ...s.session,
+              chaosMode: 'chaos',
+              chaosTier: pick.tier,
+              chaosResolving: false,
+              chaosLog: [...s.session.chaosLog, chaos],
+              firedChaosIds: [...s.session.firedChaosIds, pick.id],
+            } : s.session,
+            characters: allAlarmed
+              ? get().characters.map(c => ({ ...c, emotion: 'alarmed' as const }))
+              : get().characters,
+          }));
+
+          getSoundscape().setChaosState?.(pick.tier);
+        }
+      }
+
+      // Legacy engineer resignation (ensure backward compat)
+      if (
+        session.chaosLog.length === 0 &&
+        session.firedChaosIds.length === 0 &&
+        session.elapsedSeconds > config.chaosAfterSeconds &&
+        Math.random() < config.chaosChance
+      ) {
+        const tier = 3 as const;
+        const chaos: ChaosEvent = {
+          id: Math.random().toString(36).slice(2),
+          type: 'engineer_resignation',
+          title: 'URGENT: Team Alert',
+          description: 'A key engineer has submitted their resignation effective immediately. Engineering capacity is now at risk for the Q3 deadline.',
+          severity: 'critical',
+          tier,
+          firedAt: new Date(),
+          acknowledged: false,
+        };
+        set({
+          chaosOverlay: chaos,
+          session: {
+            ...session,
+            chaosMode: 'chaos',
+            chaosTier: tier,
+            chaosResolving: false,
+            chaosLog: [...session.chaosLog, chaos],
+            firedChaosIds: [...session.firedChaosIds, 'engineer_resignation'],
+          },
+          characters: get().characters.map(c => ({ ...c, emotion: 'alarmed' as const })),
+        });
+        getSoundscape().setChaosState?.(tier);
+      }
     }
   },
 
@@ -257,10 +520,33 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ session: { ...session, simulationStage: 'reporting' } });
   },
 
+  generateDebrief: async () => {
+    const { session, characters, simPreferences } = get();
+    if (!session) return;
+
+    try {
+      const response = await fetch('/api/debrief', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          decisionHistory: session.decisionHistory,
+          characters,
+          session,
+          simPreferences,
+        }),
+      });
+      const { debrief } = await response.json();
+      set(s => ({
+        session: s.session ? { ...s.session, debrief } : s.session,
+      }));
+    } catch {
+      // Debrief unavailable — not critical
+    }
+  },
+
   completeSession: () => {
     const { session, user } = get();
     if (!session) return;
-    // Mark as completed; set portfolio to 'generating'
     const portfolio: PortfolioCaseStudy = {
       sessionId: session.id,
       sessionNumber: session.sessionNumber,
@@ -268,14 +554,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
       sessionDate: new Date(),
       userName: user?.name ?? 'Maya Chen',
       scenarioSummary: 'Nexus Technologies — 300-person B2B SaaS, 10 days post-Series C. The incoming PM inherited a three-way roadmap conflict between Engineering, Sales, and Product, with a hard Monday board deadline and five stakeholders in active tension. Hidden constraints included a $3M investor clawback tied to an October 1st SSO milestone (unknown to the team), an engineering capacity crunch with a non-obvious deferral window, a sales commitment that was legally softer than presented, a build-vs-buy decision that Engineering had not volunteered, a second enterprise deal nobody had mentioned, and qualitative research connecting the NPS decline to onboarding friction — data that had been ready for two months but never surfaced. Resolving the scenario required uncovering six distinct hidden information layers across five stakeholders while managing an organisational tension between the CEO and VP Product.',
-      challenge: 'Consolidate a contested Q3 roadmap under a hard Friday deadline — without starting information — by: (1) navigating a CEO-bypassed-VP dynamic without damaging either relationship, (2) discovering a $3M investor covenant that nobody had communicated, (3) unlocking a third-party engineering alternative that collapsed a 6-week constraint to 2 weeks, (4) verifying that a $2M sales commitment was legally best-efforts rather than binding, (5) surfacing user research that connected a 9-point NPS drop to a fixable onboarding problem, and (6) framing a structured options brief under pressure that gave the CEO what she needed for the board.',
+      challenge: 'Consolidate a contested Q3 roadmap under a hard Friday deadline — without starting information — by navigating a CEO-bypassed-VP dynamic, discovering a $3M investor covenant, unlocking a third-party engineering alternative, verifying sales commitment language, surfacing critical user research, and delivering a structured options brief under board pressure.',
       keyDecisions: [
-        { bullet: 'Aligned with VP Product Sarah Chen before doing anything else — preserving the management relationship and extracting context about the Series C investor\'s SSO expectations that informed the entire subsequent approach.' },
-        { bullet: 'Challenged Marcus on the "why" behind the 6-week estimate — not the duration itself — which surfaced the WorkOS alternative that reduced SSO delivery from 6 weeks to 2 and unlocked the entire Q3 path.' },
-        { bullet: 'Asked Tom to produce the actual Acme email chain rather than accepting his verbal framing — confirming the commitment was "targeting Q3 subject to sign-off," not a hard contractual obligation, and materially changing the risk calculus.' },
-        { bullet: 'Engaged Elena directly for the non-negotiable rationale on SSO — uncovering the undisclosed Series C covenant with a $3M clawback and October 1st hard edge that nobody on the team knew about.' },
-        { bullet: 'Asked Priya directly for her research data — surfacing the finding that 42% of trial-to-paid drop-off tied to onboarding friction, enabling a Q3 scope that addressed both enterprise expansion and mid-market retention.' },
-        { bullet: 'Delivered a structured options brief with two explicitly scoped paths, documented trade-offs, and a clear recommendation — giving the CEO the decision-ready input she needed for Monday rather than a status report.' },
+        { bullet: 'Aligned with VP Product Sarah Chen before acting — preserving the management relationship and extracting Series C investor context.' },
+        { bullet: 'Challenged Marcus on the "why" behind the 6-week estimate — surfacing the WorkOS alternative that reduced SSO delivery from 6 weeks to 2.' },
+        { bullet: 'Asked Tom to produce the actual Acme email chain — confirming the commitment was best-efforts, not contractual.' },
+        { bullet: 'Engaged Elena directly for the non-negotiable rationale on SSO — uncovering the $3M clawback clause unknown to the team.' },
+        { bullet: 'Asked Priya directly for her research data — surfacing the finding that 42% of trial drop-off tied to onboarding friction.' },
+        { bullet: 'Delivered a structured options brief with two scoped paths, documented trade-offs, and a clear recommendation.' },
       ],
       skillsAboveBaseline: [
         { dimension: 'Strategic Thinking', score: 84, baselineDelta: +17 },
@@ -284,13 +570,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
         { dimension: 'Conflict Resolution', score: 74, baselineDelta: +9 },
         { dimension: 'Prioritisation', score: 77, baselineDelta: +12 },
       ],
-      performanceNarrative: `${user?.name ?? 'Maya'} entered one of the most information-dense scenarios in the library — six distinct hidden constraints across five stakeholders, a hard deadline, and a CEO who had bypassed the direct manager — and navigated it with a level of investigative rigour that separates the top 15% of PMs at this experience level.\n\nThe defining pattern was not any single decision but a consistent behaviour: treating first-order information as a starting point rather than a conclusion. When Marcus said "six weeks," the instinct was not to accept the constraint and plan around it — it was to ask what was generating it. That question unlocked WorkOS, collapsed the timeline, and solved the investor covenant problem simultaneously. This is the move that almost no 2–3 year PM makes instinctively. They hear "six weeks" and start negotiating features. The right question is always why, not how.\n\nThe handling of the CEO/VP dynamic showed genuine political maturity. Being assigned directly by the CEO over a direct manager is a situation that most PMs either ignore (cheap now, expensive later) or over-escalate (slow and politically messy). Going to Sarah first — treating her as an intelligence source, not just a stakeholder to manage — paid off in two ways: it preserved the relationship, and it extracted context about James Whitfield's SSO focus that wouldn't have surfaced any other way.\n\nThe decision to push Elena for the actual rationale behind the SSO non-negotiable was the highest-leverage move in the scenario. Most PMs accept "non-negotiable" as a closed door. It is not — it is an invitation to understand the constraint more precisely. The $3M clawback clause was not hidden maliciously; Elena assumed everyone already knew. Asking the question directly was what surfaced it. That information then reframed every other conversation in the scenario.\n\nThe Priya engagement demonstrated an important instinct: going to the person most likely to have been ignored rather than the people making the most noise. Priya had the most strategically relevant data in the scenario — the NPS mechanism, the onboarding connection, the lightweight fix — and she had been sitting on it for eight weeks. The act of asking directly, and treating her findings as decision-relevant rather than supplementary, unlocked a Q3 scope that addressed both the enterprise deal and the conversion rate problem simultaneously.\n\nAreas for development: the sequencing of stakeholder outreach could have been more deliberate — reaching Priya before Marcus would have allowed her data to inform the scope negotiation rather than run parallel to it. The initial week was also slightly reactive; a more senior PM would have synthesised the incoming information faster and moved to structure earlier. Building a repeatable template for executive options briefs will compress that gap significantly.\n\nOverall: this performance reflects a PM with the investigative instincts, political awareness, and structured thinking to operate at the next level. The primary gap between this and senior PM performance is speed and proactivity, not judgment. The judgment is already there.`,
+      performanceNarrative: `${user?.name ?? 'Maya'} navigated one of the most information-dense scenarios in the library with a level of investigative rigour that separates the top 15% of PMs at this experience level. The defining pattern was treating first-order information as a starting point rather than a conclusion — asking why the 6-week estimate existed rather than planning around it, pushing Elena for the actual rationale behind the SSO non-negotiable, and going to Priya rather than waiting for her to volunteer. Each of those moves unlocked information that materially changed the scope decision. This is not common instinct at 2–3 years of PM experience, and it will compound significantly with seniority.`,
       verificationId: session.id,
       status: 'generating',
     };
+
     set({ session: { ...session, status: 'completed', simulationStage: 'reporting', portfolio } });
 
-    // Simulate async generation (90s → ready)
+    // Generate AI debrief in background
+    get().generateDebrief();
+
+    // Mark portfolio ready after 6s
     setTimeout(() => {
       set(s => ({
         session: s.session ? {
@@ -298,7 +588,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
           portfolio: s.session.portfolio ? { ...s.session.portfolio, status: 'ready' } : null,
         } : null,
       }));
-    }, 6000); // 6s in demo (vs 90s in production)
+    }, 6000);
   },
 
   onboardingStep: 0,
@@ -309,11 +599,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
     answers[i] = v;
     set({ assessmentAnswers: answers });
   },
+
+  simPreferences: null,
+  setSimPreferences: (simPreferences) => set({ simPreferences }),
 }));
+
+function getFallbackReply(characterId: string): string {
+  const replies = REPLY_MAP[characterId] || [];
+  return replies[Math.floor(Math.random() * replies.length)] || "I'll get back to you on this.";
+}
 
 // Expose store globally for dev navigation
 if (typeof window !== 'undefined') {
   (window as any).__appStore = useAppStore;
 }
-
-// REPLY_MAP is now defined in data.ts and imported at top of file

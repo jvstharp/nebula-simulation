@@ -62,7 +62,50 @@ export interface AccessibilityPrefs {
   muteSounds: boolean;
 }
 
+export interface SimPreferences {
+  displayName: string;
+  experienceLevel: string;
+  preferredIndustry: string;
+  // legacy (used by mission-briefing-screen)
+  role?: string;
+  industry?: string;
+  // extended profile fields (collected in AI onboarding)
+  roleType?: 'student' | 'professional';
+  institution?: string;
+  domain?: string;
+  additionalContext?: string;
+}
+
 export type SimulationStage = 'planning' | 'execution' | 'reporting';
+
+export type DifficultyLevel = 'guided' | 'standard' | 'pressure';
+
+export interface DebriefItem {
+  timestampSeconds: number;
+  decision: string;
+  impact: string;
+  coachNote: string;
+  skill: keyof SkillScores;
+  sentiment: 'positive' | 'neutral' | 'negative';
+}
+
+export interface DecisionNode {
+  id: string;
+  timestampSeconds: number;
+  characterId: CharacterId;
+  userMessage: string;
+  characterReply: string;
+  trustBefore: number;
+  trustAfter: number;
+}
+
+export interface DynamicAnalytics {
+  nps: number;
+  trialConversion: number;
+  velocity: number;
+  churn: number;
+  dau: number;
+}
 
 export interface SessionState {
   id: string;
@@ -84,6 +127,15 @@ export interface SessionState {
   planScore: number | null;
   planFeedback: string | null;
   planUnlockedAt: Date | null;
+  // Dynamic features
+  difficulty: DifficultyLevel;
+  unlockedSecrets: string[];
+  firedCascades: string[];
+  firedChaosIds: string[];
+  lastContactedAt: Partial<Record<CharacterId, number>>;
+  decisionHistory: DecisionNode[];
+  dynamicAnalytics: DynamicAnalytics;
+  debrief: DebriefItem[] | null;
 }
 
 export interface SkillScores {
@@ -95,7 +147,7 @@ export interface SkillScores {
   executionSpeed: number;
 }
 
-export type Screen = 'desktop' | 'login' | 'register' | 'onboarding' | 'assessment' | 'dashboard' | 'simulation' | 'replay' | 'progress' | 'admin' | 'discovery' | 'browser' | 'vault' | 'profile' | 'controlpanel';
+export type Screen = 'desktop' | 'login' | 'register' | 'onboarding' | 'assessment' | 'mission-briefing' | 'office-intro' | 'prologue' | 'board-meeting' | 'dashboard' | 'simulation' | 'replay' | 'progress' | 'admin' | 'discovery' | 'browser' | 'vault' | 'profile' | 'controlpanel';
 
 export type AppTab = 'browser' | 'meetings' | 'drive' | 'assistant' | 'project';
 

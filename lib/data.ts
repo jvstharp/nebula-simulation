@@ -1,11 +1,13 @@
-import { Character, SessionState, Message, OKR } from './types';
+import { Character, SessionState, Message, OKR, CharacterId, DifficultyLevel } from './types';
+
+export const USER_AVATAR = 'https://randomuser.me/api/portraits/men/75.jpg';
 
 export const CHARACTERS: Character[] = [
   {
     id: 'sarah',
     name: 'Sarah Chen',
     title: 'VP of Product',
-    avatar: 'SC',
+    avatar: 'https://randomuser.me/api/portraits/women/44.jpg',
     color: '#7c3aed',
     personality: 'Methodical and process-driven. Was bypassed by Elena this week and is quietly calibrating whether to trust you. Holds institutional memory nobody else has — she was here through the Series A and B and has seen this exact pattern of investor-pressure-meets-sales-overreach before. Will become your strongest internal advocate if you treat her as a partner, not a gate. But she will go cold if she finds out something went to Elena before it went through her.',
     visibleAgenda: 'Maintain quality gates and ensure Product has sign-off before anything reaches the board. Needs to not be surprised on Monday — this is a professional credibility issue for her, not just a process preference.',
@@ -17,7 +19,7 @@ export const CHARACTERS: Character[] = [
     id: 'marcus',
     name: 'Marcus Webb',
     title: 'Engineering Lead',
-    avatar: 'MW',
+    avatar: 'https://randomuser.me/api/portraits/men/32.jpg',
     color: '#0891b2',
     personality: 'Direct, technically exacting, and quietly exhausted. Lost his best engineer (Jamie Chen) three weeks ago and is holding the team together by sheer force of will. When he says "six weeks" he is quoting the security review process, not his own estimate — a distinction he has not volunteered. He has identified a viable third-party integration (WorkOS) that would collapse the timeline to two weeks, but it never came up because nobody asked him to explore alternatives and it was not in the original budget conversation.',
     visibleAgenda: 'Protect engineering quality and team morale. No scope creep. No commitments made without Engineering in the room. His team is at 94% capacity and one more unplanned item tips into quality failures.',
@@ -29,7 +31,7 @@ export const CHARACTERS: Character[] = [
     id: 'priya',
     name: 'Priya Sharma',
     title: 'Head of Design',
-    avatar: 'PS',
+    avatar: 'https://randomuser.me/api/portraits/women/56.jpg',
     color: '#db2777',
     personality: 'Data-informed and quietly tenacious. Has been burned twice by sharing research that got deprioritised without explanation, so she no longer volunteers findings proactively — but the data she is sitting on is the most strategically relevant information in this scenario. She knows the exact mechanism behind the NPS drop and has a scoped, lightweight fix ready to go. She will share all of it if asked directly and treated like a decision-making peer rather than a supporting function.',
     visibleAgenda: 'Prevent the onboarding improvement from being cut for the fourth consecutive quarter. Surface the connection between UX debt and commercial churn before the board meeting locks in a scope that ignores it.',
@@ -41,7 +43,7 @@ export const CHARACTERS: Character[] = [
     id: 'tom',
     name: 'Tom Rivera',
     title: 'Sales Director',
-    avatar: 'TR',
+    avatar: 'https://randomuser.me/api/portraits/men/52.jpg',
     color: '#d97706',
     personality: 'High-energy and genuinely worried. He characterises the Acme situation as worse than it is, partly because he is anxious and partly because he is hoping urgency will force a roadmap decision faster than process normally allows. He has the actual email chain in his sent folder and will forward it without hesitation if you ask — his language was more carefully scoped than his verbal framing suggests. He also has a second piece of intelligence he has not shared: a second enterprise prospect (Meridian Group) with identical SSO requirements, currently in negotiation.',
     visibleAgenda: 'Protect the Acme deal at all costs and give his team a credible story before the next procurement call. A concrete date or a private beta offer would both work. He cannot go back to Acme with ambiguity.',
@@ -53,7 +55,7 @@ export const CHARACTERS: Character[] = [
     id: 'elena',
     name: 'Elena Park',
     title: 'CEO',
-    avatar: 'EP',
+    avatar: 'https://randomuser.me/api/portraits/women/65.jpg',
     color: '#059669',
     personality: 'Board-aware and fast-moving. Operates on the assumption that context flows correctly through the organisation without verifying it. Has a critical piece of information she has not shared with anyone — not because she is hiding it, but because she genuinely believes everyone already knows. Responds badly to options-without-recommendations but will immediately pivot and engage constructively if the trade-offs are framed with a clear point of view. She bypassed Sarah out of urgency, not politics, and will correct for it if it is raised explicitly.',
     visibleAgenda: 'Walk into Monday\'s board meeting with one credible, unified Q3 plan. No conflicting narratives. No surprises. The Series C lead investor will be in the room and has been asking about SSO progress since the term sheet was signed.',
@@ -98,6 +100,14 @@ export const INITIAL_SESSION: SessionState = {
   planScore: null,
   planFeedback: null,
   planUnlockedAt: null,
+  difficulty: 'standard' as const,
+  unlockedSecrets: [],
+  firedCascades: [],
+  firedChaosIds: [],
+  lastContactedAt: {},
+  decisionHistory: [],
+  dynamicAnalytics: { nps: 42, trialConversion: 23, velocity: 84, churn: 4.2, dau: 12400 },
+  debrief: null,
 };
 
 export const INITIAL_MESSAGES: Message[] = [
@@ -384,3 +394,221 @@ export const REPLY_MAP: Record<string, string[]> = {
     "Here is the frame I want for the board deck: we are making a deliberate choice between two defensible paths, we understand the trade-offs fully, and we have a clear recommendation with the team aligned behind it. That is a competent company making a hard call. The alternative — walking in with ambiguity — reads as a company that does not have its act together. I will take a hard decision over an unclear one every time.",
   ],
 };
+
+// ─── Character Secrets (unlocked by trust threshold) ────────────────────────
+export const CHARACTER_SECRETS: Record<CharacterId, { threshold: number; secretId: string; message: string }[]> = {
+  marcus: [
+    { threshold: 0.68, secretId: 'marcus_workos', message: "Hey — just between us. WorkOS has a pre-built SSO connector. We could be live in two weeks, not six. I didn't raise it because nobody asked and I didn't want to look like I was shaping the decision. But if you're asking: yes, this is doable fast. The compliance review question largely disappears with a certified third-party provider." },
+    { threshold: 0.80, secretId: 'marcus_billing', message: "One more thing — if you defer the billing migration final phase to Q4, I get roughly four extra engineer-weeks before end of Q3. The August 14–16 window is the last safe handoff point. That's basically a free sprint. I didn't raise it earlier because the migration was assumed to be non-negotiable. Is it?" },
+  ],
+  priya: [
+    { threshold: 0.75, secretId: 'priya_interviews', message: "I have the full interview recordings if you want them — twelve sessions, each about 25 minutes. The Q7 open-text responses are the most useful. I've been trying to get someone senior to actually read them for two months. If you have 20 minutes, I can walk you through the top five quotes. The pattern becomes impossible to unsee." },
+  ],
+  tom: [
+    { threshold: 0.62, secretId: 'tom_meridian', message: "There's actually a second deal I haven't mentioned — Meridian Group, $1.4M ARR potential. Slightly smaller than Acme. Same SSO requirement, same timeline pressure. I've been keeping it separate because I didn't want to pile on, but if we ship SSO in Q3 we close both simultaneously. That's $3.4M in new ARR, not $2M." },
+    { threshold: 0.78, secretId: 'tom_acuity_date', message: "I found out the actual date on the Acuity demo — it's in five weeks, not six. I learned this morning from a contact at Acme's IT team. We have less runway than I said in my original email. I'm sorry I didn't have this earlier." },
+  ],
+  elena: [
+    { threshold: 0.80, secretId: 'elena_clawback', message: "I should have told you this from the start. There's a $3M clawback clause in the Series C docs — SSO and audit logging must be live by October 1st or we give back $3M of the round to Sequoia. James Whitfield's team put it in at the last minute. I assumed it was communicated to the leadership team. I now realise it wasn't. Build the plan around October 1st as a hard wall." },
+  ],
+  sarah: [
+    { threshold: 0.80, secretId: 'sarah_series_b', message: "We went through something almost identical at Series B. Elena made a unilateral call then too, and we shipped a half-baked feature that caused a 12-week support crisis the following quarter. I'm not asking you to manage that dynamic — I'm asking you to include me early enough that we don't repeat it. The pattern is real. I've seen it twice now." },
+  ],
+};
+
+// ─── Cascade Events (fired when characters are ignored) ─────────────────────
+export interface CascadeEvent {
+  id: string;
+  trigger: (session: { elapsedSeconds: number; lastContactedAt: Partial<Record<CharacterId, number>>; firedCascades: string[] }) => boolean;
+  characterId: CharacterId;
+  channel: 'email' | 'chat';
+  subject?: string;
+  message: string;
+}
+
+export const CASCADE_EVENTS: CascadeEvent[] = [
+  {
+    id: 'priya_ignored_4min',
+    trigger: (s) =>
+      !s.firedCascades.includes('priya_ignored_4min') &&
+      s.elapsedSeconds > 60 &&
+      (s.elapsedSeconds - (s.lastContactedAt['priya'] ?? 0)) > 240,
+    characterId: 'priya',
+    channel: 'email',
+    subject: 'RE: Research data — still relevant?',
+    message: "Just checking in — should I put the interview research on hold? I know everyone's focused on SSO but the NPS data is time-sensitive ahead of the board meeting. Happy to defer if that's the call, but wanted to flag before we lose the window.",
+  },
+  {
+    id: 'marcus_check_in',
+    trigger: (s) =>
+      !s.firedCascades.includes('marcus_check_in') &&
+      s.elapsedSeconds > 120 &&
+      (s.elapsedSeconds - (s.lastContactedAt['marcus'] ?? 0)) > 300,
+    characterId: 'marcus',
+    channel: 'chat',
+    message: "Hey — the team's starting to ask about Q3 scope. Do you have a draft plan I can share with them? They're getting anxious and I'd rather give them something concrete than let speculation run.",
+  },
+  {
+    id: 'tom_acme_pressure',
+    trigger: (s) =>
+      !s.firedCascades.includes('tom_acme_pressure') &&
+      s.elapsedSeconds > 420,
+    characterId: 'tom',
+    channel: 'email',
+    subject: 'Acme — Need update ASAP',
+    message: "Michael at Acme just pinged me asking for confirmation that SSO is in Q3. I need something concrete I can forward — even a one-liner from you that confirms we're on track. I cannot leave this unanswered past EOD.",
+  },
+  {
+    id: 'elena_follow_up',
+    trigger: (s) =>
+      !s.firedCascades.includes('elena_follow_up') &&
+      s.elapsedSeconds > 600 &&
+      !(s.lastContactedAt['elena']),
+    characterId: 'elena',
+    channel: 'email',
+    subject: 'RE: Q3 Roadmap — Status?',
+    message: "Haven't heard from you yet. Board is Monday. I need a draft recommendation by Friday EOD — even a rough outline so I can pressure-test it before the meeting. What's your current read on the path forward?",
+  },
+];
+
+// ─── Chaos Event Pool (Tier 1, 2, and additional Tier 3) ─────────────────────
+export interface ChaosEventDef {
+  id: string;
+  tier: 1 | 2 | 3;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  title: string;
+  description: string;
+  type: string;
+  minElapsed: number; // seconds before this can fire
+}
+
+export const CHAOS_EVENT_POOL: ChaosEventDef[] = [
+  {
+    id: 'standup_alert',
+    tier: 1,
+    severity: 'low',
+    title: 'Standup Starts in 90 Seconds',
+    description: 'The team standup is about to begin. Your video is connected. You can join or skip — skipping may signal to the team that you\'re heads-down on the roadmap.',
+    type: 'calendar_interrupt',
+    minElapsed: 120,
+  },
+  {
+    id: 'design_sprint_blocked',
+    tier: 2,
+    severity: 'medium',
+    title: 'Design Sprint Blocked',
+    description: "Priya's design sprint has been blocked — Engineering hasn't confirmed capacity. NPS is now at risk for the quarter if this slips another week. She's waiting on a capacity confirmation from Marcus.",
+    type: 'team_blocker',
+    minElapsed: 200,
+  },
+  {
+    id: 'acuity_demo_request',
+    tier: 2,
+    severity: 'high',
+    title: 'Competitive Alert: Acuity',
+    description: "Tom just forwarded you an email: Acuity has requested a demo with Acme's CTO next Thursday. If you don't respond with a roadmap commitment today, Acme will attend the Acuity demo with no counter-offer from Nexus.",
+    type: 'competitive_threat',
+    minElapsed: 360,
+  },
+  {
+    id: 'board_member_dm',
+    tier: 2,
+    severity: 'high',
+    title: 'Board Member Escalation',
+    description: "James Whitfield (Sequoia) emailed Elena asking for a direct SSO status update. She forwarded it to you: 'Can you draft me three bullets on where this stands? I need to reply to James before end of day.'",
+    type: 'exec_escalation',
+    minElapsed: 480,
+  },
+  {
+    id: 'roadmap_leak',
+    tier: 3,
+    severity: 'critical',
+    title: 'URGENT: Roadmap Leak',
+    description: "Tom accidentally CC'd Acme's procurement team on an internal roadmap thread. They've seen an unconfirmed feature list with Q3 dates. You have approximately 20 minutes before this surfaces in their next vendor review.",
+    type: 'data_breach',
+    minElapsed: 500,
+  },
+];
+
+// ─── Difficulty Config ────────────────────────────────────────────────────────
+export const DIFFICULTY_CONFIG: Record<DifficultyLevel, {
+  chaosChance: number;
+  chaosAfterSeconds: number;
+  cascadeDelayMultiplier: number;
+  trustDeltaBoost: number;
+  maxChaosEvents: number;
+}> = {
+  guided: {
+    chaosChance: 0.06,
+    chaosAfterSeconds: 480,
+    cascadeDelayMultiplier: 1.8,
+    trustDeltaBoost: 0.03,
+    maxChaosEvents: 1,
+  },
+  standard: {
+    chaosChance: 0.15,
+    chaosAfterSeconds: 300,
+    cascadeDelayMultiplier: 1.0,
+    trustDeltaBoost: 0,
+    maxChaosEvents: 2,
+  },
+  pressure: {
+    chaosChance: 0.25,
+    chaosAfterSeconds: 180,
+    cascadeDelayMultiplier: 0.6,
+    trustDeltaBoost: -0.03,
+    maxChaosEvents: 4,
+  },
+};
+
+// ─── Fly on the Wall Prologue Messages ───────────────────────────────────────
+export const PROLOGUE_MESSAGES: { from: CharacterId; delay: number; text: string }[] = [
+  { from: 'elena',  delay: 0,     text: "Good morning everyone. I'm bringing in a new PM to own the Q3 roadmap. They start today." },
+  { from: 'sarah',  delay: 2800,  text: "Do they know about the SSO situation? There's quite a bit of context they'll need before touching anything." },
+  { from: 'elena',  delay: 5500,  text: "I'll brief them. The important thing is we move fast. Board is Monday." },
+  { from: 'marcus', delay: 7800,  text: "Fast is relative. Engineering is already stretched thin. I want that on record before we make any new commitments." },
+  { from: 'tom',    delay: 10200, text: "We have a $2M deal contingent on Q3 delivery. I just want everyone to understand what's at stake here." },
+  { from: 'marcus', delay: 12800, text: "I know, Tom. I'm stating facts, not arguing." },
+  { from: 'priya',  delay: 15500, text: "I have research that's directly relevant to this conversation. Nobody's asked for it yet." },
+  { from: 'sarah',  delay: 18200, text: "Priya — flag it to the new PM when they're in. They should see it." },
+  { from: 'elena',  delay: 20800, text: "Let's align once they're up to speed. I have a board prep call at 9." },
+  { from: 'sarah',  delay: 23500, text: "..." },
+];
+
+// ─── Lateral Character Trust (for relationship web) ──────────────────────────
+export const LATERAL_TRUST: { from: CharacterId; to: CharacterId; trust: number; label: string }[] = [
+  { from: 'sarah',  to: 'marcus', trust: 0.72, label: 'collegial' },
+  { from: 'tom',    to: 'elena',  trust: 0.81, label: 'aligned' },
+  { from: 'sarah',  to: 'elena',  trust: 0.45, label: 'strained' },
+  { from: 'marcus', to: 'tom',    trust: 0.38, label: 'frustrated' },
+  { from: 'priya',  to: 'sarah',  trust: 0.74, label: 'allied' },
+  { from: 'priya',  to: 'marcus', trust: 0.65, label: 'collaborative' },
+  { from: 'tom',    to: 'marcus', trust: 0.42, label: 'tense' },
+];
+
+// ─── Session Benchmarks & Leaderboard ────────────────────────────────────────
+export const SESSION_BENCHMARKS = {
+  avgTrust: 0.63,
+  avgOkrCompletion: 0.52,
+  avgSecretsUnlocked: 1.2,
+  topPercentileLabel: (trust: number) => {
+    if (trust >= 0.82) return 'Top 5%';
+    if (trust >= 0.75) return 'Top 15%';
+    if (trust >= 0.68) return 'Top 30%';
+    if (trust >= 0.60) return 'Top 50%';
+    return 'Below average';
+  },
+};
+
+export const MOCK_LEADERBOARD = [
+  { rank: 1, initials: 'A.K.', role: 'Sr. PM · Google',        avgTrust: 0.88, secrets: 4, score: 91 },
+  { rank: 2, initials: 'M.O.', role: 'PM · Stripe',            avgTrust: 0.84, secrets: 4, score: 87 },
+  { rank: 3, initials: 'S.R.', role: 'Product Lead · Figma',   avgTrust: 0.82, secrets: 3, score: 85 },
+  { rank: 4, initials: 'J.W.', role: 'PM II · Atlassian',      avgTrust: 0.79, secrets: 3, score: 82 },
+  { rank: 5, initials: 'P.C.', role: 'Associate PM · Airbnb',  avgTrust: 0.77, secrets: 3, score: 80 },
+  { rank: 6, initials: 'T.A.', role: 'PM · Notion',            avgTrust: 0.75, secrets: 2, score: 77 },
+  { rank: 7, initials: 'L.B.', role: 'Sr. PM · HubSpot',       avgTrust: 0.73, secrets: 2, score: 74 },
+  { rank: 8, initials: 'R.N.', role: 'PM · Linear',            avgTrust: 0.71, secrets: 2, score: 72 },
+  { rank: 9, initials: 'C.H.', role: 'Associate PM · Vercel',  avgTrust: 0.68, secrets: 1, score: 69 },
+  { rank: 10, initials: 'D.L.', role: 'PM · Intercom',         avgTrust: 0.65, secrets: 1, score: 65 },
+];
