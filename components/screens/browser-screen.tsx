@@ -775,7 +775,7 @@ function KanbanBoard() {
     const card = columns.find(c => c.id === fromColId)?.cards.find(c => c.id === cardId);
     if (!card) return;
     moveKanbanCard(cardId, toColId);
-    onUserMoveCard(card, toColId);
+    onUserMoveCard(card, fromColId, toColId);
     if (selectedCard?.card.id === cardId) setSelectedCard(null);
   };
 

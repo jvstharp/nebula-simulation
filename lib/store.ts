@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Character, CharacterId, Message, SessionState, Screen, AppTab, BrowserTab, ChaosEvent, OKR, PortfolioCaseStudy, AccessibilityPrefs, SimulationStage, KanbanCard, KanbanColumn } from './types';
-import { CHARACTERS, INITIAL_SESSION, INITIAL_MESSAGES, INITIAL_OKRS, REPLY_MAP, INITIAL_KANBAN_COLUMNS } from './data';
+import { CHARACTERS, INITIAL_SESSION, INITIAL_MESSAGES, INITIAL_OKRS, REPLY_MAP, INITIAL_KANBAN_COLUMNS, CARD_REACTION_MAP } from './data';
 import { getSoundscape } from './soundscape';
 
 export interface MinimizedWindow {
@@ -63,7 +63,7 @@ interface AppStore {
   cardAdvanceCooldowns: Partial<Record<CharacterId, number>>;
   moveKanbanCard: (cardId: string, toColId: string) => void;
   injectMessage: (characterId: CharacterId, body: string, channel: 'chat' | 'email') => void;
-  onUserMoveCard: (card: KanbanCard, toColId: string) => void;
+  onUserMoveCard: (card: KanbanCard, fromColId: string, toColId: string) => void;
 
   // Onboarding
   onboardingStep: number;
@@ -392,13 +392,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
     getSoundscape().playNotificationPing();
   },
 
-  onUserMoveCard: (card, toColId) => {
+  onUserMoveCard: (card, fromColId, toColId) => {
     const { characters, injectMessage, session } = get();
     if (!session || session.status !== 'active') return;
 
     // PM's own card moved to Done: relevant teammate acknowledges
     if (card.assignee === 'Y' && toColId === 'done') {
-      // Pick the most relevant character based on card tag
       const tagToChar: Record<string, CharacterId> = {
         Eng: 'marcus', Sales: 'tom', Research: 'priya', UX: 'priya',
         Executive: 'elena', Strategy: 'sarah', Product: 'sarah', Process: 'sarah',
@@ -415,37 +414,37 @@ export const useAppStore = create<AppStore>((set, get) => ({
       return;
     }
 
-    // Only react to teammate cards (not other user movements)
+    // Only react to teammate cards
     if (card.assignee === 'Y') return;
     const charInitialMap: Record<string, CharacterId> = { M: 'marcus', T: 'tom', P: 'priya', S: 'sarah', E: 'elena' };
     const characterId = charInitialMap[card.assignee];
     if (!characterId) return;
     const char = characters.find(c => c.id === characterId);
     if (!char) return;
+
     const trust = char.trust;
+    const tier: 'high' | 'mid' | 'low' = trust >= 0.65 ? 'high' : trust >= 0.45 ? 'mid' : 'low';
+    const reactions = CARD_REACTION_MAP[characterId];
+    const pick = (pool: string[]) => pool[Math.floor(Math.random() * pool.length)];
 
-    const colLabels: Record<string, string> = { inprogress: 'In Progress', review: 'Review', done: 'Done', backlog: 'Backlog' };
-    const colLabel = colLabels[toColId] ?? toColId;
-
-    let response: string;
-    if (toColId === 'inprogress') {
-      response = trust >= 0.65
-        ? `Saw you flagged "${card.title}" as active — I'm on it.`
-        : trust >= 0.45
-        ? `Got it, I'll pick up "${card.title}". It may take me a bit.`
-        : `I'd prefer to manage my own queue — I'll get to "${card.title}" when I can.`;
+    let pool: string[];
+    if (toColId === 'done') {
+      // Premature close: moved to Done without going through Review
+      const isPremature = fromColId !== 'review';
+      pool = isPremature
+        ? (tier === 'low' ? reactions.toDone.low : reactions.toDone.earlyClose)
+        : reactions.toDone.natural;
+    } else if (toColId === 'inprogress') {
+      pool = reactions.toInProgress[tier];
     } else if (toColId === 'review') {
-      response = trust >= 0.45
-        ? `"${card.title}" is at your end now — let me know if you have feedback.`
-        : `Noted that you moved "${card.title}" to Review. I'll follow up separately.`;
-    } else if (toColId === 'done') {
-      response = trust >= 0.45
-        ? `Good to close out "${card.title}".`
-        : `"${card.title}" marked done — works for me.`;
+      pool = reactions.toReview[tier];
+    } else if (toColId === 'backlog') {
+      pool = reactions.toBacklog;
     } else {
-      response = `Noted the move on "${card.title}" to ${colLabel}.`;
+      return; // unknown column — no reaction
     }
 
+    const response = pick(pool);
     setTimeout(() => {
       get().injectMessage(characterId, response, 'chat');
     }, 1500 + Math.random() * 1500);
