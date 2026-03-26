@@ -1,4 +1,5 @@
 "use client";
+export const dynamic = 'force-dynamic';
 import { useAppStore } from "@/lib/store";
 import { LoginScreen } from "@/components/screens/login-screen";
 import { OnboardingScreen } from "@/components/screens/onboarding-screen";
