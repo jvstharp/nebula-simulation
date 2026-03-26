@@ -17,10 +17,32 @@ export function LoginScreen() {
     if (!email || !password) { setError('Please fill in all fields.'); return; }
     if (mode === 'register' && !name) { setError('Please enter your name.'); return; }
     setLoading(true);
-    await new Promise(r => setTimeout(r, 800));
-    setUser({ name: name || email.split('@')[0], email, credits: 10 });
-    setScreen('onboarding');
-    setLoading(false);
+
+    try {
+      const endpoint = mode === 'register' ? '/api/auth/register' : '/api/auth/login';
+      const body = mode === 'register' ? { email, password, name } : { email, password };
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error ?? 'Something went wrong. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      setUser({ name: data.user.name, email: data.user.email, credits: 10 });
+      setScreen('onboarding');
+    } catch {
+      setError('Network error. Please check your connection.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const inputStyle: React.CSSProperties = {
@@ -201,7 +223,7 @@ export function LoginScreen() {
           </div>
 
           <button
-            onClick={() => handleSubmit({ preventDefault: () => {} } as any)}
+            onClick={() => setError('Google sign-in coming soon. Please use email and password.')}
             style={{
               width: '100%',
               height: 40,

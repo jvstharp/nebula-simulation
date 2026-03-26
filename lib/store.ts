@@ -4,6 +4,55 @@ import { CHARACTERS, INITIAL_SESSION, INITIAL_MESSAGES, INITIAL_OKRS, REPLY_MAP,
 import { getSoundscape } from './soundscape';
 import { generateCharacterReply, TriggerType } from './ai';
 
+// ── Backend helpers ──────────────────────────────────────────────────────────
+
+async function apiPost(path: string, body: unknown): Promise<unknown> {
+  try {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+async function apiPatch(path: string, body: unknown): Promise<unknown> {
+  try {
+    const res = await fetch(path, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+// Debounced state sync — saves Zustand snapshot to DB at most every 10s
+let _syncTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleStateSync(dbSessionId: string, getState: () => AppStore) {
+  if (_syncTimer) clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(() => {
+    const s = getState();
+    apiPatch(`/api/sessions/${dbSessionId}`, {
+      elapsedSeconds: s.session?.elapsedSeconds,
+      stage: s.session?.simulationStage,
+      stateJson: {
+        characters: s.characters,
+        kanbanColumns: s.kanbanColumns,
+        okrs: s.session?.okrs,
+        chaosMode: s.session?.chaosMode,
+      },
+    });
+  }, 10000);
+}
+
 export interface MinimizedWindow {
   screen: Screen;
   label: string;
@@ -25,6 +74,10 @@ interface AppStore {
   // Auth
   user: { name: string; email: string; credits: number } | null;
   setUser: (u: AppStore['user']) => void;
+
+  // Backend session ID (mirrors DB record)
+  dbSessionId: string | null;
+  setDbSessionId: (id: string | null) => void;
 
   // Simulation
   session: SessionState | null;
@@ -95,6 +148,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
   user: null,
   setUser: (user) => set({ user }),
 
+  dbSessionId: null,
+  setDbSessionId: (dbSessionId) => set({ dbSessionId }),
+
   session: null,
   characters: CHARACTERS,
   messages: [],
@@ -116,8 +172,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
       messages: INITIAL_MESSAGES,
       characters: CHARACTERS,
     });
-    // Init soundscape on session start (will actually unlock on first user interaction)
     getSoundscape().init().catch(() => {});
+
+    // Create DB session record (fire and forget — sim runs offline if this fails)
+    apiPost('/api/sessions', { scenarioId: 'roadmap-reckoning' }).then((data: any) => {
+      if (data?.session?.id) {
+        set({ dbSessionId: data.session.id });
+      }
+    });
   },
 
   sendMessage: (body, channel, subject) => {
@@ -135,8 +197,25 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
     set({ messages: [...messages, msg] });
 
+    // Persist message + log event to DB (fire and forget)
+    const { dbSessionId, session } = get();
+    if (dbSessionId) {
+      apiPost(`/api/sessions/${dbSessionId}/messages`, {
+        from: 'user', to: activeCharacter.id, channel, body,
+      });
+      apiPost(`/api/sessions/${dbSessionId}/events`, {
+        type: 'message_sent',
+        payload: {
+          characterId: activeCharacter.id,
+          channel,
+          elapsedSeconds: session?.elapsedSeconds ?? 0,
+        },
+      });
+      scheduleStateSync(dbSessionId, get);
+    }
+
     // Generate live reply via Claude; fall back to REPLY_MAP on failure
-    const { session, kanbanColumns } = get();
+    const { kanbanColumns } = get();
     generateCharacterReply(
       activeCharacter.id,
       'message_reply',
@@ -209,7 +288,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   receiveReply: (characterId, body, trustDelta) => {
-    const { messages, characters, session } = get();
+    const { messages, characters, session, dbSessionId } = get();
     const char = characters.find(c => c.id === characterId);
     if (!char) return;
     const msg: Message = {
@@ -227,6 +306,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
       characters: characters.map(c => c.id === characterId ? { ...c, trust: newTrust } : c),
       trustToast: { characterId, name: char.name, delta: trustDelta, newTrust },
     });
+
+    // Persist incoming message + trust event to DB
+    if (dbSessionId) {
+      apiPost(`/api/sessions/${dbSessionId}/messages`, {
+        from: characterId, to: 'user', channel: 'chat', body,
+      });
+      apiPost(`/api/sessions/${dbSessionId}/events`, {
+        type: 'trust_changed',
+        payload: { characterId, delta: trustDelta, newTrust, elapsedSeconds: session?.elapsedSeconds ?? 0 },
+      });
+      scheduleStateSync(dbSessionId, get);
+    }
 
     // Auto-clear trust toast after 3.5s
     setTimeout(() => {
@@ -311,6 +402,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
         kanbanColumns: columnsWithBlock,
       });
       getSoundscape().setChaosState(tier);
+      // Log chaos event to DB
+      const { dbSessionId: chaosDbId } = get();
+      if (chaosDbId) {
+        apiPost(`/api/sessions/${chaosDbId}/events`, {
+          type: 'chaos_triggered',
+          payload: { tier, type: 'engineer_resignation', elapsedSeconds: session.elapsedSeconds },
+        });
+      }
       // Marcus flags the capacity impact on the board
       setTimeout(() => {
         get().injectMessage('marcus', "Given the team situation, I need to flag that my work on the board is at risk. I'll reassess capacity once things stabilize.", 'chat');
@@ -331,47 +430,94 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   completeSession: () => {
-    const { session, user } = get();
+    const { session, user, dbSessionId, characters, kanbanColumns } = get();
     if (!session) return;
-    // Mark as completed; set portfolio to 'generating'
+
+    // Immediately mark as completed with portfolio status 'generating'
     const portfolio: PortfolioCaseStudy = {
       sessionId: session.id,
       sessionNumber: session.sessionNumber,
       scenarioName: 'The Roadmap Reckoning',
       sessionDate: new Date(),
-      userName: user?.name ?? 'Maya Chen',
-      scenarioSummary: 'Nexus Technologies — 300-person B2B SaaS, 10 days post-Series C. The incoming PM inherited a three-way roadmap conflict between Engineering, Sales, and Product, with a hard Monday board deadline and five stakeholders in active tension. Hidden constraints included a $3M investor clawback tied to an October 1st SSO milestone (unknown to the team), an engineering capacity crunch with a non-obvious deferral window, a sales commitment that was legally softer than presented, a build-vs-buy decision that Engineering had not volunteered, a second enterprise deal nobody had mentioned, and qualitative research connecting the NPS decline to onboarding friction — data that had been ready for two months but never surfaced. Resolving the scenario required uncovering six distinct hidden information layers across five stakeholders while managing an organisational tension between the CEO and VP Product.',
-      challenge: 'Consolidate a contested Q3 roadmap under a hard Friday deadline — without starting information — by: (1) navigating a CEO-bypassed-VP dynamic without damaging either relationship, (2) discovering a $3M investor covenant that nobody had communicated, (3) unlocking a third-party engineering alternative that collapsed a 6-week constraint to 2 weeks, (4) verifying that a $2M sales commitment was legally best-efforts rather than binding, (5) surfacing user research that connected a 9-point NPS drop to a fixable onboarding problem, and (6) framing a structured options brief under pressure that gave the CEO what she needed for the board.',
-      keyDecisions: [
-        { bullet: 'Aligned with VP Product Sarah Chen before doing anything else — preserving the management relationship and extracting context about the Series C investor\'s SSO expectations that informed the entire subsequent approach.' },
-        { bullet: 'Challenged Marcus on the "why" behind the 6-week estimate — not the duration itself — which surfaced the WorkOS alternative that reduced SSO delivery from 6 weeks to 2 and unlocked the entire Q3 path.' },
-        { bullet: 'Asked Tom to produce the actual Acme email chain rather than accepting his verbal framing — confirming the commitment was "targeting Q3 subject to sign-off," not a hard contractual obligation, and materially changing the risk calculus.' },
-        { bullet: 'Engaged Elena directly for the non-negotiable rationale on SSO — uncovering the undisclosed Series C covenant with a $3M clawback and October 1st hard edge that nobody on the team knew about.' },
-        { bullet: 'Asked Priya directly for her research data — surfacing the finding that 42% of trial-to-paid drop-off tied to onboarding friction, enabling a Q3 scope that addressed both enterprise expansion and mid-market retention.' },
-        { bullet: 'Delivered a structured options brief with two explicitly scoped paths, documented trade-offs, and a clear recommendation — giving the CEO the decision-ready input she needed for Monday rather than a status report.' },
-      ],
-      skillsAboveBaseline: [
-        { dimension: 'Strategic Thinking', score: 84, baselineDelta: +17 },
-        { dimension: 'Stakeholder Mgmt', score: 81, baselineDelta: +14 },
-        { dimension: 'Communication', score: 78, baselineDelta: +11 },
-        { dimension: 'Conflict Resolution', score: 74, baselineDelta: +9 },
-        { dimension: 'Prioritisation', score: 77, baselineDelta: +12 },
-      ],
-      performanceNarrative: `${user?.name ?? 'Maya'} entered one of the most information-dense scenarios in the library — six distinct hidden constraints across five stakeholders, a hard deadline, and a CEO who had bypassed the direct manager — and navigated it with a level of investigative rigour that separates the top 15% of PMs at this experience level.\n\nThe defining pattern was not any single decision but a consistent behaviour: treating first-order information as a starting point rather than a conclusion. When Marcus said "six weeks," the instinct was not to accept the constraint and plan around it — it was to ask what was generating it. That question unlocked WorkOS, collapsed the timeline, and solved the investor covenant problem simultaneously. This is the move that almost no 2–3 year PM makes instinctively. They hear "six weeks" and start negotiating features. The right question is always why, not how.\n\nThe handling of the CEO/VP dynamic showed genuine political maturity. Being assigned directly by the CEO over a direct manager is a situation that most PMs either ignore (cheap now, expensive later) or over-escalate (slow and politically messy). Going to Sarah first — treating her as an intelligence source, not just a stakeholder to manage — paid off in two ways: it preserved the relationship, and it extracted context about James Whitfield's SSO focus that wouldn't have surfaced any other way.\n\nThe decision to push Elena for the actual rationale behind the SSO non-negotiable was the highest-leverage move in the scenario. Most PMs accept "non-negotiable" as a closed door. It is not — it is an invitation to understand the constraint more precisely. The $3M clawback clause was not hidden maliciously; Elena assumed everyone already knew. Asking the question directly was what surfaced it. That information then reframed every other conversation in the scenario.\n\nThe Priya engagement demonstrated an important instinct: going to the person most likely to have been ignored rather than the people making the most noise. Priya had the most strategically relevant data in the scenario — the NPS mechanism, the onboarding connection, the lightweight fix — and she had been sitting on it for eight weeks. The act of asking directly, and treating her findings as decision-relevant rather than supplementary, unlocked a Q3 scope that addressed both the enterprise deal and the conversion rate problem simultaneously.\n\nAreas for development: the sequencing of stakeholder outreach could have been more deliberate — reaching Priya before Marcus would have allowed her data to inform the scope negotiation rather than run parallel to it. The initial week was also slightly reactive; a more senior PM would have synthesised the incoming information faster and moved to structure earlier. Building a repeatable template for executive options briefs will compress that gap significantly.\n\nOverall: this performance reflects a PM with the investigative instincts, political awareness, and structured thinking to operate at the next level. The primary gap between this and senior PM performance is speed and proactivity, not judgment. The judgment is already there.`,
-      verificationId: session.id,
+      userName: user?.name ?? 'PM',
+      scenarioSummary: '',
+      challenge: '',
+      keyDecisions: [],
+      skillsAboveBaseline: [],
+      performanceNarrative: '',
+      verificationId: dbSessionId ?? session.id,
       status: 'generating',
     };
     set({ session: { ...session, status: 'completed', simulationStage: 'reporting', portfolio } });
 
-    // Simulate async generation (90s → ready)
-    setTimeout(() => {
+    if (!dbSessionId) return;
+
+    // Final OKR progress average
+    const finalOkrProgress = Math.round(
+      session.okrs.reduce((sum, o) => sum + o.progress, 0) / Math.max(session.okrs.length, 1)
+    );
+
+    // 1. Complete session + run scoring
+    apiPost(`/api/sessions/${dbSessionId}/complete`, {
+      planScore: session.planScore ?? 0,
+      finalOkrProgress,
+      elapsedSeconds: session.elapsedSeconds,
+      stateJson: { characters, kanbanColumns, okrs: session.okrs },
+    }).then(() => {
+      // 2. Kick off AI portfolio generation
+      return apiPost(`/api/sessions/${dbSessionId}/portfolio`, {});
+    }).then((data: any) => {
+      const portfolioData = data?.portfolio;
+      if (!portfolioData) return;
+
+      // Update local state with DB portfolio id and start polling
       set(s => ({
         session: s.session ? {
           ...s.session,
-          portfolio: s.session.portfolio ? { ...s.session.portfolio, status: 'ready' } : null,
+          portfolio: s.session.portfolio ? {
+            ...s.session.portfolio,
+            verificationId: portfolioData.verificationId ?? s.session.portfolio.verificationId,
+          } : null,
         } : null,
       }));
-    }, 6000); // 6s in demo (vs 90s in production)
+
+      // Poll for portfolio ready (every 5s, max 12 attempts = 60s)
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        attempts++;
+        if (attempts > 12) { clearInterval(poll); return; }
+        const res = await fetch(`/api/sessions/${dbSessionId}/portfolio`).catch(() => null);
+        if (!res?.ok) return;
+        const { portfolio: polled } = await res.json().catch(() => ({}));
+        if (polled?.status === 'ready') {
+          clearInterval(poll);
+          set(s => ({
+            session: s.session ? {
+              ...s.session,
+              portfolio: s.session.portfolio ? {
+                ...s.session.portfolio,
+                status: 'ready',
+                scenarioSummary: polled.scenarioSummary,
+                challenge: polled.challenge,
+                keyDecisions: polled.keyDecisions,
+                performanceNarrative: polled.performanceNarrative,
+                skillsAboveBaseline: Object.entries(polled.skillScores ?? {}).map(([k, v]) => ({
+                  dimension: k, score: v as number, baselineDelta: 0,
+                })),
+              } : null,
+            } : null,
+          }));
+        } else if (polled?.status === 'failed') {
+          clearInterval(poll);
+          set(s => ({
+            session: s.session ? {
+              ...s.session,
+              portfolio: s.session.portfolio ? { ...s.session.portfolio, status: 'failed' } : null,
+            } : null,
+          }));
+        }
+      }, 5000);
+    });
   },
 
   // Kanban
@@ -410,7 +556,23 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   onUserMoveCard: (card, fromColId, toColId) => {
-    const { characters, injectMessage, session } = get();
+    const { characters, injectMessage, session, dbSessionId } = get();
+
+    // Log card move event
+    if (dbSessionId) {
+      apiPost(`/api/sessions/${dbSessionId}/events`, {
+        type: 'card_moved',
+        payload: {
+          cardTitle: card.title,
+          cardId: card.id,
+          assignee: card.assignee,
+          fromCol: fromColId,
+          toCol: toColId,
+          elapsedSeconds: session?.elapsedSeconds ?? 0,
+        },
+      });
+      scheduleStateSync(dbSessionId, get);
+    }
     if (!session || session.status !== 'active') return;
 
     // PM's own card moved to Done: relevant teammate acknowledges
