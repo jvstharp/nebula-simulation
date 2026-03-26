@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { Character, Message, SessionState, Screen, AppTab, BrowserTab, ChaosEvent, OKR, PortfolioCaseStudy, AccessibilityPrefs, SimulationStage } from './types';
-import { CHARACTERS, INITIAL_SESSION, INITIAL_MESSAGES, INITIAL_OKRS, REPLY_MAP } from './data';
+import { Character, CharacterId, Message, SessionState, Screen, AppTab, BrowserTab, ChaosEvent, OKR, PortfolioCaseStudy, AccessibilityPrefs, SimulationStage, KanbanCard, KanbanColumn } from './types';
+import { CHARACTERS, INITIAL_SESSION, INITIAL_MESSAGES, INITIAL_OKRS, REPLY_MAP, INITIAL_KANBAN_COLUMNS } from './data';
 import { getSoundscape } from './soundscape';
 
 export interface MinimizedWindow {
@@ -57,6 +57,13 @@ interface AppStore {
   completeSession: () => void;
   advanceToExecution: (planScore: number, planFeedback: string) => void;
   advanceToReporting: () => void;
+
+  // Kanban board (shared state so simulation can update it)
+  kanbanColumns: KanbanColumn[];
+  cardAdvanceCooldowns: Partial<Record<CharacterId, number>>;
+  moveKanbanCard: (cardId: string, toColId: string) => void;
+  injectMessage: (characterId: CharacterId, body: string, channel: 'chat' | 'email') => void;
+  onUserMoveCard: (card: KanbanCard, toColId: string) => void;
 
   // Onboarding
   onboardingStep: number;
@@ -222,6 +229,45 @@ export const useAppStore = create<AppStore>((set, get) => ({
     // Play notification ping
     getSoundscape().playNotificationPing();
 
+    // Teammate card progression: advance one of their assigned cards based on trust
+    const assigneeInitialMap: Record<string, string> = { marcus: 'M', tom: 'T', priya: 'P', sarah: 'S', elena: 'E' };
+    const assigneeInitial = assigneeInitialMap[characterId];
+    if (assigneeInitial && newTrust >= 0.45) {
+      const cooldowns = get().cardAdvanceCooldowns;
+      const lastAdvance = cooldowns[characterId as CharacterId] ?? 0;
+      const cooldownMs = 30000;
+      if (Date.now() - lastAdvance >= cooldownMs) {
+        setTimeout(() => {
+          const { kanbanColumns, moveKanbanCard, injectMessage, session: currentSession } = get();
+          if (!currentSession || currentSession.status !== 'active') return;
+          const inProgressCard = kanbanColumns.find(c => c.id === 'inprogress')?.cards.find(c => c.assignee === assigneeInitial && !c.blocked);
+          const backlogCard = kanbanColumns.find(c => c.id === 'backlog')?.cards.find(c => c.assignee === assigneeInitial && !c.blocked);
+          const currentTrust = get().characters.find(c => c.id === characterId)?.trust ?? 0;
+
+          let cardToAdvance: KanbanCard | undefined;
+          let toColId: string;
+
+          if (inProgressCard && currentTrust >= 0.65) {
+            cardToAdvance = inProgressCard;
+            toColId = 'review';
+          } else if (backlogCard) {
+            cardToAdvance = backlogCard;
+            toColId = 'inprogress';
+          }
+
+          if (!cardToAdvance) return;
+
+          moveKanbanCard(cardToAdvance.id, toColId);
+          set(s => ({ cardAdvanceCooldowns: { ...s.cardAdvanceCooldowns, [characterId]: Date.now() } }));
+
+          const updateMsg = toColId === 'inprogress'
+            ? `Picking up "${cardToAdvance.title}" — I'll loop back when I have something.`
+            : `"${cardToAdvance.title}" is ready for your review — let me know if you need changes.`;
+          injectMessage(characterId as CharacterId, updateMsg, 'chat');
+        }, 4000 + Math.random() * 6000);
+      }
+    }
+
     // Maybe fire chaos (Tier 3 — engineer resignation, once per session)
     if (session && !session.chaosLog.length && session.elapsedSeconds > 300 && Math.random() < 0.15) {
       const tier = 3 as const;
@@ -235,13 +281,23 @@ export const useAppStore = create<AppStore>((set, get) => ({
         firedAt: new Date(),
         acknowledged: false,
       };
+      // Block Marcus's active cards — capacity is now at risk
+      const columnsWithBlock = get().kanbanColumns.map(col => {
+        if (col.id !== 'inprogress' && col.id !== 'backlog') return col;
+        return { ...col, cards: col.cards.map(c => c.assignee === 'M' ? { ...c, blocked: true } : c) };
+      });
       set({
         chaosOverlay: chaos,
         session: { ...session, chaosMode: 'chaos', chaosTier: tier, chaosResolving: false, chaosLog: [...session.chaosLog, chaos] },
         // All characters shift to alarmed state at Tier 3
         characters: get().characters.map(c => ({ ...c, emotion: 'alarmed' as const })),
+        kanbanColumns: columnsWithBlock,
       });
       getSoundscape().setChaosState(tier);
+      // Marcus flags the capacity impact on the board
+      setTimeout(() => {
+        get().injectMessage('marcus', "Given the team situation, I need to flag that my work on the board is at risk. I'll reassess capacity once things stabilize.", 'chat');
+      }, 2000);
     }
   },
 
@@ -299,6 +355,80 @@ export const useAppStore = create<AppStore>((set, get) => ({
         } : null,
       }));
     }, 6000); // 6s in demo (vs 90s in production)
+  },
+
+  // Kanban
+  kanbanColumns: INITIAL_KANBAN_COLUMNS,
+  cardAdvanceCooldowns: {},
+
+  moveKanbanCard: (cardId, toColId) => {
+    const { kanbanColumns, session, updateOKR } = get();
+    let movedCard: KanbanCard | null = null;
+    const afterRemove = kanbanColumns.map(col => {
+      const found = col.cards.find(c => c.id === cardId);
+      if (found) { movedCard = found; return { ...col, cards: col.cards.filter(c => c.id !== cardId) }; }
+      return col;
+    });
+    if (!movedCard) return;
+    const card = movedCard as KanbanCard;
+    if (toColId === 'done' && card.linkedOkr && session) {
+      const okr = session.okrs.find(o => o.id === card.linkedOkr);
+      if (okr && okr.progress < 85) updateOKR(card.linkedOkr, Math.min(okr.progress + 35, 85));
+    }
+    set({ kanbanColumns: afterRemove.map(col => col.id !== toColId ? col : { ...col, cards: [...col.cards, card] }) });
+  },
+
+  injectMessage: (characterId, body, channel) => {
+    const msg: Message = {
+      id: Math.random().toString(36).slice(2),
+      from: characterId,
+      to: 'user',
+      channel,
+      body,
+      timestamp: new Date(),
+      read: false,
+    };
+    set(s => ({ messages: [...s.messages, msg] }));
+    getSoundscape().playNotificationPing();
+  },
+
+  onUserMoveCard: (card, toColId) => {
+    const { characters, injectMessage, session } = get();
+    if (!session || session.status !== 'active') return;
+    // Only react to teammate cards (not user's own)
+    if (card.assignee === 'Y') return;
+    const charInitialMap: Record<string, CharacterId> = { M: 'marcus', T: 'tom', P: 'priya', S: 'sarah', E: 'elena' };
+    const characterId = charInitialMap[card.assignee];
+    if (!characterId) return;
+    const char = characters.find(c => c.id === characterId);
+    if (!char) return;
+    const trust = char.trust;
+
+    const colLabels: Record<string, string> = { inprogress: 'In Progress', review: 'Review', done: 'Done', backlog: 'Backlog' };
+    const colLabel = colLabels[toColId] ?? toColId;
+
+    let response: string;
+    if (toColId === 'inprogress') {
+      response = trust >= 0.65
+        ? `Saw you flagged "${card.title}" as active — I'm on it.`
+        : trust >= 0.45
+        ? `Got it, I'll pick up "${card.title}". It may take me a bit.`
+        : `I'd prefer to manage my own queue — I'll get to "${card.title}" when I can.`;
+    } else if (toColId === 'review') {
+      response = trust >= 0.45
+        ? `"${card.title}" is at your end now — let me know if you have feedback.`
+        : `Noted that you moved "${card.title}" to Review. I'll follow up separately.`;
+    } else if (toColId === 'done') {
+      response = trust >= 0.45
+        ? `Good to close out "${card.title}".`
+        : `"${card.title}" marked done — works for me.`;
+    } else {
+      response = `Noted the move on "${card.title}" to ${colLabel}.`;
+    }
+
+    setTimeout(() => {
+      get().injectMessage(characterId, response, 'chat');
+    }, 1500 + Math.random() * 1500);
   },
 
   onboardingStep: 0,

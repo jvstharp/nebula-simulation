@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useAppStore } from "@/lib/store";
 import { AppWindow } from "@/components/layout/app-window";
-import type { BrowserTab, SimulationStage } from "@/lib/types";
+import type { BrowserTab, SimulationStage, KanbanCard, KanbanColumn } from "@/lib/types";
 import { SectionHeader, cardStyle, cardHoverIn, cardHoverOut } from "@/components/layout/discovery-ui";
 import { AnalyticsPanel } from "@/components/simulation/analytics-panel";
 import { OKRPanel } from "@/components/simulation/okr-panel";
@@ -659,58 +659,7 @@ function ChatTab() {
 }
 
 /* ── PROJECT TAB ────────────────────────────────────────────────────────────── */
-
-interface KanbanCard {
-  id: string;
-  title: string;
-  tag: string;
-  assignee: string;
-  priority: 'high' | 'med' | 'low';
-  notes: string;
-  linkedOkr?: string; // fires updateOKR when moved to Done
-}
-
-interface KanbanColumn {
-  id: string;
-  label: string;
-  color: string;
-  cards: KanbanCard[];
-}
-
-// Scenario-aligned initial board — tasks mirror the 5 session OKRs
-const INITIAL_KANBAN_COLUMNS: KanbanColumn[] = [
-  {
-    id: 'backlog', label: 'Backlog', color: '#6b7280',
-    cards: [
-      { id: 'k1', title: 'Request Acme deal email chain from Tom', tag: 'Sales', assignee: 'T', priority: 'high', notes: '', linkedOkr: 'okr2' },
-      { id: 'k2', title: 'SSO approach evaluation — WorkOS vs in-house', tag: 'Eng', assignee: 'M', priority: 'high', notes: '', linkedOkr: 'okr3' },
-      { id: 'k3', title: 'Review onboarding research data with Priya', tag: 'Research', assignee: 'P', priority: 'high', notes: '' },
-      { id: 'k4', title: 'Competitive brief — Acuity SSO timeline', tag: 'Strategy', assignee: 'T', priority: 'med', notes: '' },
-    ],
-  },
-  {
-    id: 'inprogress', label: 'In Progress', color: '#49a5de',
-    cards: [
-      { id: 'k5', title: 'Engineering scope negotiation with Marcus', tag: 'Eng', assignee: 'M', priority: 'high', notes: '', linkedOkr: 'okr1' },
-      { id: 'k6', title: 'CEO options brief — draft', tag: 'Executive', assignee: 'Y', priority: 'high', notes: '', linkedOkr: 'okr4' },
-      { id: 'k7', title: 'Cross-functional alignment notes', tag: 'Strategy', assignee: 'Y', priority: 'med', notes: '' },
-    ],
-  },
-  {
-    id: 'review', label: 'Review', color: '#deaf49',
-    cards: [
-      { id: 'k8', title: 'Revised Q3 scope document v2', tag: 'Product', assignee: 'Y', priority: 'high', notes: '', linkedOkr: 'okr1' },
-      { id: 'k9', title: 'Sales commitment risk assessment', tag: 'Sales', assignee: 'T', priority: 'med', notes: '', linkedOkr: 'okr2' },
-    ],
-  },
-  {
-    id: 'done', label: 'Done', color: '#02ba67',
-    cards: [
-      { id: 'k10', title: 'Stakeholder 1:1 schedule', tag: 'Process', assignee: 'Y', priority: 'med', notes: '' },
-      { id: 'k11', title: 'Initial roadmap audit', tag: 'Strategy', assignee: 'Y', priority: 'low', notes: '' },
-    ],
-  },
-];
+// KanbanCard and KanbanColumn types are defined in lib/types.ts
 
 const PRIORITY_COLORS = { high: '#d44848', med: '#deaf49', low: '#6b7280' };
 const PRIORITY_BG    = { high: '#d44848', med: '#deaf49', low: 'rgba(107,114,128,0.12)' };
@@ -767,8 +716,7 @@ const PROJECT_SUB_TABS: { id: ProjectSubTab; label: string; icon: React.ReactNod
 
 /* ── KANBAN BOARD ─────────────────────────────────────────────────────────── */
 function KanbanBoard() {
-  const { session, updateOKR } = useAppStore();
-  const [columns, setColumns] = useState<KanbanColumn[]>(INITIAL_KANBAN_COLUMNS);
+  const { kanbanColumns: columns, moveKanbanCard, onUserMoveCard } = useAppStore();
   const dragInfo = React.useRef<{ cardId: string; fromColId: string } | null>(null);
   const [dragOverColId, setDragOverColId] = useState<string | null>(null);
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
@@ -796,15 +744,17 @@ function KanbanBoard() {
 
   const saveCard = () => {
     if (!selectedCard) return;
-    setColumns(cols => cols.map(col => col.id !== selectedCard.colId ? col : {
-      ...col,
-      cards: col.cards.map(c => c.id !== selectedCard.card.id ? c : {
-        ...c,
-        title: editTitle.trim() || c.title,
-        tag: editTag || c.tag,
-        priority: editPriority,
-        assignee: editAssignee,
-        notes: editNotes,
+    useAppStore.setState(s => ({
+      kanbanColumns: s.kanbanColumns.map(col => col.id !== selectedCard.colId ? col : {
+        ...col,
+        cards: col.cards.map(c => c.id !== selectedCard.card.id ? c : {
+          ...c,
+          title: editTitle.trim() || c.title,
+          tag: editTag || c.tag,
+          priority: editPriority,
+          assignee: editAssignee,
+          notes: editNotes,
+        }),
       }),
     }));
     setSelectedCard(null);
@@ -812,28 +762,20 @@ function KanbanBoard() {
 
   const deleteCard = () => {
     if (!selectedCard) return;
-    setColumns(cols => cols.map(col => col.id !== selectedCard.colId ? col : {
-      ...col, cards: col.cards.filter(c => c.id !== selectedCard.card.id),
+    useAppStore.setState(s => ({
+      kanbanColumns: s.kanbanColumns.map(col => col.id !== selectedCard.colId ? col : {
+        ...col, cards: col.cards.filter(c => c.id !== selectedCard.card.id),
+      }),
     }));
     setSelectedCard(null);
   };
 
   const moveCard = (cardId: string, fromColId: string, toColId: string) => {
     if (fromColId === toColId) return;
-    let movedCard: KanbanCard | null = null;
-    const afterRemove = columns.map(col => {
-      if (col.id !== fromColId) return col;
-      movedCard = col.cards.find(c => c.id === cardId) ?? null;
-      return { ...col, cards: col.cards.filter(c => c.id !== cardId) };
-    });
-    if (!movedCard) return;
-    const card = movedCard as KanbanCard;
-    // Advance linked OKR when card lands in Done
-    if (toColId === 'done' && card.linkedOkr && session) {
-      const okr = session.okrs.find(o => o.id === card.linkedOkr);
-      if (okr && okr.progress < 85) updateOKR(card.linkedOkr, Math.min(okr.progress + 35, 85));
-    }
-    setColumns(afterRemove.map(col => col.id !== toColId ? col : { ...col, cards: [...col.cards, card] }));
+    const card = columns.find(c => c.id === fromColId)?.cards.find(c => c.id === cardId);
+    if (!card) return;
+    moveKanbanCard(cardId, toColId);
+    onUserMoveCard(card, toColId);
     if (selectedCard?.card.id === cardId) setSelectedCard(null);
   };
 
@@ -841,7 +783,9 @@ function KanbanBoard() {
     const title = newCardTitle.trim();
     if (!title) { setAddingToColId(null); return; }
     const newCard: KanbanCard = { id: `k-${Date.now()}`, title, tag: 'Product', assignee: 'Y', priority: 'med', notes: '' };
-    setColumns(cols => cols.map(col => col.id !== colId ? col : { ...col, cards: [...col.cards, newCard] }));
+    useAppStore.setState(s => ({
+      kanbanColumns: s.kanbanColumns.map(col => col.id !== colId ? col : { ...col, cards: [...col.cards, newCard] }),
+    }));
     setNewCardTitle('');
     setAddingToColId(null);
   };
@@ -926,16 +870,23 @@ function KanbanBoard() {
                       onClick={() => !isDragging && openCard(card, col.id)}
                       style={{
                         background: isDragging ? 'rgba(255,255,255,0.01)' : '#212121',
-                        border: `1px solid ${isDragging ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.08)'}`,
+                        border: `1px solid ${isDragging ? 'rgba(255,255,255,0.04)' : card.blocked ? 'rgba(212,72,72,0.35)' : 'rgba(255,255,255,0.08)'}`,
                         borderRadius: 9, padding: '9px 11px',
                         cursor: isDragging ? 'grabbing' : 'grab',
-                        opacity: isDragging ? 0.35 : 1,
+                        opacity: isDragging ? 0.35 : card.blocked ? 0.75 : 1,
                         transition: 'opacity 120ms, box-shadow 150ms',
                         userSelect: 'none',
                       }}
                       onMouseEnter={e => { if (!isDragging) (e.currentTarget as HTMLElement).style.boxShadow = '0 3px 14px rgba(0,0,0,0.45)'; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = 'none'; }}
                     >
+                      {/* Blocked indicator */}
+                      {card.blocked && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 5 }}>
+                          <div style={{ width: 4, height: 4, borderRadius: '50%', background: '#d44848' }} />
+                          <span style={{ fontSize: 8.5, fontWeight: 700, color: '#d44848', letterSpacing: '0.06em' }}>BLOCKED</span>
+                        </div>
+                      )}
                       {/* OKR link indicator */}
                       {card.linkedOkr && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 5 }}>
