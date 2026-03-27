@@ -22,6 +22,11 @@ const COL_NAMES: Record<string, string> = {
   done: 'Done',
 };
 
+export interface CharacterReplyResult {
+  reply: string | null;
+  trustDelta: number;
+}
+
 export async function generateCharacterReply(
   characterId: string,
   triggerType: TriggerType,
@@ -32,7 +37,7 @@ export async function generateCharacterReply(
     session: SessionState;
     kanbanColumns: KanbanColumn[];
   }
-): Promise<string | null> {
+): Promise<CharacterReplyResult> {
   const assigneeInitial = ASSIGNEE_INITIAL[characterId];
 
   const myCards = state.kanbanColumns.flatMap(col =>
@@ -87,10 +92,13 @@ export async function generateCharacterReply(
       }),
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) return { reply: null, trustDelta: 0 };
     const data = await res.json();
-    return data.reply ?? null;
+    return {
+      reply: data.reply ?? null,
+      trustDelta: typeof data.trustDelta === 'number' ? data.trustDelta : 0,
+    };
   } catch {
-    return null;
+    return { reply: null, trustDelta: 0 };
   }
 }

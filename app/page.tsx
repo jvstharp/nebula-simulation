@@ -47,6 +47,39 @@ function TrustToast() {
   );
 }
 
+/* ── Constraint unlock toasts ─────────────────────────────────────────────── */
+function ConstraintToasts() {
+  const { constraintToasts, dismissConstraintToast } = useAppStore();
+  if (!constraintToasts.length) return null;
+  return (
+    <div style={{ position: 'fixed', top: 20, right: 24, zIndex: 2600, display: 'flex', flexDirection: 'column', gap: 8, pointerEvents: 'none' }}>
+      {constraintToasts.map((t, idx) => (
+        <div key={t.id} style={{
+          background: 'rgba(12,12,18,0.97)',
+          border: '1px solid rgba(20,123,88,0.5)',
+          borderRadius: 12, padding: '10px 14px',
+          display: 'flex', alignItems: 'flex-start', gap: 10,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.55), 0 0 20px rgba(20,123,88,0.12)',
+          backdropFilter: 'blur(14px)',
+          animation: 'slideInRight 0.25s ease',
+          maxWidth: 280,
+          marginTop: idx === 0 ? 0 : 0,
+          pointerEvents: 'all',
+        }}>
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(20,123,88,0.15)', border: '1px solid rgba(20,123,88,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0 }}>🔓</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: '#147b58', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 2 }}>Constraint Unlocked</div>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: 'rgba(255,255,255,0.9)', marginBottom: 1 }}>{t.label}</div>
+            <div style={{ fontSize: 11, color: 'rgba(175,163,159,0.7)' }}>via {t.characterName}</div>
+          </div>
+          <button onClick={() => dismissConstraintToast(t.id)} style={{ background: 'none', border: 'none', color: 'rgba(175,163,159,0.4)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
+        </div>
+      ))}
+      <style>{`@keyframes slideInRight{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}`}</style>
+    </div>
+  );
+}
+
 const APP_SCREENS = new Set(['browser', 'vault', 'discovery', 'profile']);
 
 export default function Home() {
@@ -72,6 +105,7 @@ export default function Home() {
       <ControlPanelPopover />
       <ChaosOverlay />
       <TrustToast />
+      <ConstraintToasts />
     </>
   );
 }

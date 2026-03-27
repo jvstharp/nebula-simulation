@@ -29,10 +29,11 @@ model SimSession {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  messages  SimMessage[]
-  events    SessionEvent[]
-  result    SessionResult?
-  portfolio Portfolio?
+  messages   SimMessage[]
+  events     SessionEvent[]
+  result     SessionResult?
+  portfolio  Portfolio?
+  documents  SimDocument[]
 
   @@index([userId])
   @@map("sim_sessions")
@@ -104,4 +105,20 @@ model Portfolio {
   updatedAt DateTime @updatedAt
 
   @@map("portfolios")
+}
+
+model SimDocument {
+  id          String     @id @default(cuid())
+  sessionId   String
+  session     SimSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  characterId String     // which teammate shared it
+  name        String
+  docType     String     // pdf | docx | xlsx
+  status      String     @default("generating") // generating | ready | failed
+  content     Json?      // structured document content
+
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+  @@map("sim_documents")
 }

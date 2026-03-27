@@ -4,6 +4,50 @@ import { CHARACTERS, INITIAL_SESSION, INITIAL_MESSAGES, INITIAL_OKRS, REPLY_MAP,
 import { getSoundscape } from './soundscape';
 import { generateCharacterReply, TriggerType } from './ai';
 
+// ── Constraint detection — client-side keyword scan on character replies ──────
+const CONSTRAINT_PATTERNS: Record<string, Array<{ keywords: string[]; constraint: string }>> = {
+  marcus: [{ keywords: ['workos', 'third-party', '2 weeks', 'two weeks', 'vendor'], constraint: 'workos' }],
+  elena: [{ keywords: ['clawback', 'october 1', 'covenant', 'milestone clause'], constraint: 'clawback' }],
+  tom: [
+    { keywords: ['best efforts', 'best-efforts', 'not a hard'], constraint: 'best_efforts' },
+    { keywords: ['meridian'], constraint: 'meridian' },
+  ],
+  priya: [{ keywords: ['conversion', 'trial-to-paid', 'exit survey', 'funnel drop'], constraint: 'priya_research' }],
+  sarah: [{ keywords: ['whitfield', 'james whitfield', 'sequoia', 'series c lead'], constraint: 'sarah_context' }],
+};
+
+function detectConstraint(characterId: string, replyText: string): string | null {
+  const patterns = CONSTRAINT_PATTERNS[characterId];
+  if (!patterns) return null;
+  const lower = replyText.toLowerCase();
+  for (const { keywords, constraint } of patterns) {
+    if (keywords.some(k => lower.includes(k))) return constraint;
+  }
+  return null;
+}
+
+const CONSTRAINT_LABELS: Record<string, string> = {
+  workos: 'WorkOS shortcut identified',
+  clawback: '$3M clawback clause revealed',
+  best_efforts: 'Acme commitment clarified',
+  meridian: 'Meridian deal surfaced',
+  priya_research: 'Conversion research unlocked',
+  sarah_context: 'Investor SSO context revealed',
+};
+
+// ── Document share detection ──────────────────────────────────────────────────
+const DOC_SHARE_RE = /(?:shared|sent you|sending over|your drive|check your|dropped|put together|i've added|ping(?:ed)? you|forwarding)/i;
+const DOC_TYPE_RE = /(?:doc(?:ument)?|brief|analysis|report|research|data|breakdown|deck|file|notes|spec|summary|map|email chain)/i;
+
+function maybeGenerateDoc(characterId: string, body: string, sessionId: string) {
+  if (!DOC_SHARE_RE.test(body) || !DOC_TYPE_RE.test(body)) return;
+  fetch('/api/documents/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionId, characterId, triggerMessage: body }),
+  }).catch(() => {});
+}
+
 // ── Backend helpers ──────────────────────────────────────────────────────────
 
 async function apiPost(path: string, body: unknown): Promise<unknown> {
@@ -124,6 +168,11 @@ interface AppStore {
   assessmentAnswers: number[];
   setOnboardingStep: (n: number) => void;
   setAssessmentAnswer: (i: number, v: number) => void;
+
+  // Constraint discovery
+  revealedConstraints: string[];
+  constraintToasts: Array<{ id: string; constraint: string; label: string; characterName: string }>;
+  dismissConstraintToast: (id: string) => void;
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -221,10 +270,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
       'message_reply',
       body,
       { character: activeCharacter, recentMessages: messages, session: session!, kanbanColumns }
-    ).then(reply => {
+    ).then(result => {
       const fallbackPool = REPLY_MAP[activeCharacter.id] || [];
-      const text = reply ?? (fallbackPool[Math.floor(Math.random() * fallbackPool.length)] || "I'll get back to you on this.");
-      const trustDelta = (Math.random() - 0.3) * 0.1;
+      const text = result.reply ?? (fallbackPool[Math.floor(Math.random() * fallbackPool.length)] || "I'll get back to you on this.");
+      // Use AI-derived trust delta; fall back to small random value if API returned 0 (parse failure)
+      const trustDelta = result.trustDelta !== 0 ? result.trustDelta : (Math.random() - 0.35) * 0.08;
       get().receiveReply(activeCharacter.id, text, trustDelta);
     });
   },
@@ -324,6 +374,39 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set(s => s.trustToast?.characterId === characterId ? { trustToast: null } : {});
     }, 3500);
 
+    // Constraint discovery detection
+    const { revealedConstraints } = get();
+    const detected = detectConstraint(characterId, body);
+    if (detected && !revealedConstraints.includes(detected)) {
+      const toastId = Math.random().toString(36).slice(2);
+      const charDisplayName = get().characters.find(c => c.id === characterId)?.name ?? characterId;
+      set(s => ({
+        revealedConstraints: [...s.revealedConstraints, detected],
+        constraintToasts: [...s.constraintToasts, {
+          id: toastId,
+          constraint: detected,
+          label: CONSTRAINT_LABELS[detected] ?? detected,
+          characterName: charDisplayName,
+        }],
+      }));
+      // Log constraint unlock event to DB
+      if (dbSessionId) {
+        apiPost(`/api/sessions/${dbSessionId}/events`, {
+          type: 'hidden_constraint_unlocked',
+          payload: { constraint: detected, characterId, elapsedSeconds: get().session?.elapsedSeconds ?? 0 },
+        });
+      }
+      // Auto-dismiss constraint toast after 6s
+      setTimeout(() => {
+        set(s => ({ constraintToasts: s.constraintToasts.filter(t => t.id !== toastId) }));
+      }, 6000);
+    }
+
+    // Document share detection — trigger AI doc generation if character mentions sharing a file
+    if (dbSessionId) {
+      maybeGenerateDoc(characterId, body, dbSessionId);
+    }
+
     // Play notification ping
     getSoundscape().playNotificationPing();
 
@@ -369,8 +452,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
             'card_advanced_autonomous',
             `You are moving "${cardSnapshot.title}" to ${toColSnapshot === 'inprogress' ? 'In Progress' : 'Review'}.`,
             { character: advChar, recentMessages: get().messages, session: get().session!, kanbanColumns: get().kanbanColumns }
-          ).then(reply => {
-            injectMessage(characterId as CharacterId, reply ?? fallbackMsg, 'chat');
+          ).then(result => {
+            injectMessage(characterId as CharacterId, result.reply ?? fallbackMsg, 'chat');
           });
         }, 4000 + Math.random() * 6000);
       }
@@ -640,8 +723,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
       triggerType,
       triggerBody,
       { character: char, recentMessages: get().messages, session: session!, kanbanColumns: get().kanbanColumns }
-    ).then(reply => {
-      const text = reply ?? pick(pool);
+    ).then(result => {
+      const text = result.reply ?? pick(pool);
       setTimeout(() => {
         get().injectMessage(characterId, text, 'chat');
       }, 1500 + Math.random() * 1500);
@@ -656,6 +739,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
     answers[i] = v;
     set({ assessmentAnswers: answers });
   },
+
+  revealedConstraints: [],
+  constraintToasts: [],
+  dismissConstraintToast: (id) => set(s => ({
+    constraintToasts: s.constraintToasts.filter(t => t.id !== id),
+  })),
 }));
 
 // Expose store globally for dev navigation
