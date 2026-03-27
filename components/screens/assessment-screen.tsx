@@ -39,7 +39,7 @@ export function AssessmentScreen() {
   const [done, setDone] = useState(false);
 
   const q = ASSESSMENT_QUESTIONS[current];
-  const isLast = current === ASSESSMENT_ASSESSMENT_QUESTIONS.length - 1;
+  const isLast = current === ASSESSMENT_QUESTIONS.length - 1;
 
   const callEvaluate = async (ans: string, followUpQ?: string) => {
     setLoading(true);

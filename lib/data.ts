@@ -647,3 +647,279 @@ export const MOCK_LEADERBOARD = [
   { rank: 9, initials: 'C.H.', role: 'Associate PM · Vercel',  avgTrust: 0.68, secrets: 1, score: 69 },
   { rank: 10, initials: 'D.L.', role: 'PM · Intercom',         avgTrust: 0.65, secrets: 1, score: 65 },
 ];
+
+// Character-specific reactions when the PM moves their cards on the Kanban board.
+// Mirrors the REPLY_MAP pattern: random selection from each pool.
+export const CARD_REACTION_MAP: Record<CharacterId, {
+  toInProgress: { high: string[]; mid: string[]; low: string[] };
+  toReview:     { high: string[]; mid: string[]; low: string[] };
+  toDone: {
+    natural:    string[];  // moved from Review — natural completion
+    earlyClose: string[];  // moved from Backlog or In Progress — work isn't done
+    low:        string[];  // low trust, any premature close — friction
+  };
+  toBacklog: string[];     // deprioritised — usually worth a note
+}> = {
+  marcus: {
+    toInProgress: {
+      high: [
+        "On it. I'll flag anything that changes the timeline before it becomes a problem.",
+        "Picking this up. My team will need a written scope confirmation before I brief them — send that when you can.",
+        "Moving. One thing to note: Jordan is on leave from the 11th, so the auth work has to be me or Aisha. Just flagging.",
+      ],
+      mid: [
+        "I can move on this but we're at 94% right now. Tell me what comes off the list to make room.",
+        "I'll start it — but I need clarity on the security review requirements before we go further. That is not optional.",
+        "Working on it. I can't promise a date until I know whether the WorkOS route is approved. That changes everything.",
+      ],
+      low: [
+        "Moving cards doesn't change my team's capacity. Come talk to me before you reprioritise my queue.",
+        "I'd prefer to manage my own work order. If this is urgent, let's have that conversation directly.",
+        "Fine. But I'm going to need this in writing — not a moved card. My team needs proper direction.",
+      ],
+    },
+    toReview: {
+      high: [
+        "Sent to your end. I want written confirmation before my team does anything based on your feedback.",
+        "In review. Feedback needs to land by EOD tomorrow — I can't hold the team waiting after that.",
+      ],
+      mid: [
+        "It's in review. I'll need your notes in a format I can share with the team, not just a verbal summary.",
+        "Review stage. Bear in mind the security sign-off process runs in parallel — your feedback doesn't change that timeline.",
+      ],
+      low: [
+        "Fine, it's in review. I'll follow up when I'm ready.",
+        "Noted. I'll look at your comments when I get to it.",
+      ],
+    },
+    toDone: {
+      natural: [
+        "Good to have that closed out.",
+        "Closed. Let me know if anything comes back from Engineering's end.",
+      ],
+      earlyClose: [
+        "I haven't finished this yet. Marking it done doesn't make it done.",
+        "That's premature — don't close it out until I tell you the work is complete.",
+        "The security review is still open. Moving this to Done is not accurate. I'd rather we kept the board honest.",
+      ],
+      low: [
+        "I'm going to reopen that. The work isn't done and I won't have my team's output marked complete when it isn't.",
+        "That's not correct. This is still in progress on our end. Please don't close things without checking with me.",
+      ],
+    },
+    toBacklog: [
+      "Moving this back is fine — but if the priority has changed, I need to know why so I can brief the team.",
+      "Noted. I'll take it off the active list. Let me know when it comes back up.",
+    ],
+  },
+
+  tom: {
+    toInProgress: {
+      high: [
+        "On it. What's the timeline I can give Acme? I need something concrete before the next call.",
+        "Saw you pulled this up — I'll move on it. Can we sync before end of day so I have something to take to David?",
+        "Good call. I'll prioritise this. One thing: if this is about Acme, I need a date I can put in writing — not 'we're working on it.'",
+      ],
+      mid: [
+        "I can reprioritise but I'm mid-prep for the Acme call. What's more urgent right now?",
+        "Got it — but I'm trading this against the Meridian follow-up. That a call you're okay with?",
+        "Working on it. I just need to know: is this about closing Acme, or is this something else? The answer changes how I frame it.",
+      ],
+      low: [
+        "Cards don't close deals. Tell me what I can actually bring to Acme and I'll prioritise accordingly.",
+        "I'm already working the deals. Reprioritising my board items doesn't help if we don't have a product story I can sell.",
+        "I'll get to it. But I need information, not reshuffling — what's actually changing on the product side?",
+      ],
+    },
+    toReview: {
+      high: [
+        "At your end. Whatever comes out of this — I need a version I can take to David at Acme.",
+        "In review. If there's anything in here that changes the commitment language, flag it fast — I have a call Thursday.",
+      ],
+      mid: [
+        "Noted as in review. I'll follow up on the Acme angle separately — we can't let that sit.",
+        "Review stage. Just know that if this affects the Acme timeline, I'll need to know by tomorrow morning.",
+      ],
+      low: [
+        "Fine, in review. I'll follow up when I have more context on where the deal is.",
+        "Noted. I'll come back to this.",
+      ],
+    },
+    toDone: {
+      natural: [
+        "Good to have that off the list.",
+        "Closed — thanks. I'll update the Acme notes accordingly.",
+      ],
+      earlyClose: [
+        "That's not done — I still need a concrete position to take to Acme. Don't mark this closed.",
+        "Closing this out without a resolution doesn't help me. The deal is still open.",
+        "I need an outcome from this, not a closed ticket. What's the actual answer I'm taking to David?",
+      ],
+      low: [
+        "I'm going to flag this as still open. I have nothing to take to Acme yet — marking it done is misleading.",
+        "That's not accurate. This isn't resolved from a Sales perspective. Please don't close it.",
+      ],
+    },
+    toBacklog: [
+      "Moving this backwards is not what I need right now. The Acme call is in three days.",
+      "Deprioritising this is a risk I want on record. If the deal moves while this is in Backlog, I'll need to escalate.",
+    ],
+  },
+
+  priya: {
+    toInProgress: {
+      high: [
+        "Good — I've had this ready. Tell me how you want it presented so it actually lands this time.",
+        "Picking it up. Do you want the full research file or a condensed version for the brief?",
+        "On it. The data is solid — I just need to know where this is going before I format it.",
+      ],
+      mid: [
+        "I'll pick it up — just want to flag: this data was scoped for the sprint review. Is the framing changing again?",
+        "I'll surface it. One ask: if I share this and it gets deferred again, I'm going to stop volunteering research proactively. This is the fourth time.",
+        "Moving on it. I'd appreciate knowing upfront if the scope is changing — it affects how I present the findings.",
+      ],
+      low: [
+        "I'll get to it. Though I've moved my own work forward three times based on reprioritisation that didn't go anywhere.",
+        "Noted. I'll do it. But I'd appreciate knowing upfront if the scope is changing before I do the work.",
+        "Fine. I'll pull it together. Just don't shelve it again without telling me why.",
+      ],
+    },
+    toReview: {
+      high: [
+        "At your end. The open-text responses in the appendix are the most important part — read those first.",
+        "In review. If you want to walk through the methodology before it goes to Elena, I'm available.",
+      ],
+      mid: [
+        "In review. I want to be in the room when this gets presented — I can field questions on the data.",
+        "Sent to review. Please make sure the NPS driver breakdown doesn't get stripped out — that's the key finding.",
+      ],
+      low: [
+        "In review. Let me know what you actually do with it.",
+        "It's there. I'll follow up if I don't hear back.",
+      ],
+    },
+    toDone: {
+      natural: [
+        "Good to have it acknowledged.",
+        "Closed. Let me know if you need anything for the board presentation.",
+      ],
+      earlyClose: [
+        "I haven't actually presented this data yet — don't mark it done. The insights haven't been incorporated.",
+        "Closing this out before the findings are used defeats the point. What happened to including this in the brief?",
+        "This isn't done — the data exists but it hasn't influenced anything yet. That's what I'm here for.",
+      ],
+      low: [
+        "I'm going to reopen that. The research hasn't been used — marking it done while ignoring the findings is exactly what I was worried about.",
+        "That's not done from my perspective. The whole point was to incorporate this into the scope decision.",
+      ],
+    },
+    toBacklog: [
+      "Moving this back is fine — but I want to know if the scope decision is already locked. If it is, this data won't matter anyway.",
+      "Noted. This is the third time it's gone back to Backlog. I'll keep the file ready.",
+    ],
+  },
+
+  sarah: {
+    toInProgress: {
+      high: [
+        "On it — I'll make sure the framing is aligned with what goes to Elena.",
+        "Picking this up. Quick confirm: have you looped Marcus in before this goes further? I want to make sure we're aligned end-to-end.",
+        "Moving. I'll send you a draft by EOD. I need to review it against the board brief first.",
+      ],
+      mid: [
+        "I can move on this — but nothing goes to Elena without coming through me first. Is that the agreement?",
+        "Working on it. I want to flag: the process here matters. Can we confirm the sequence before I move further?",
+        "I'll start — but I want written confirmation that I'm reviewing before anything goes upward. That's not a formality.",
+      ],
+      low: [
+        "I'd appreciate being consulted before you reprioritise my items. I have context on why this was sequenced the way it was.",
+        "'Moving a card' is not alignment — let's actually talk before you change the order of my work.",
+        "I'll get to it. But for the record: this is exactly the kind of unilateral reshuffling that creates confusion upstream.",
+      ],
+    },
+    toReview: {
+      high: [
+        "At your end. Please flag anything that affects the board narrative before you change it — I need to be across that.",
+        "In review. If this touches the VP-CEO dynamic in any way, I want to be in that conversation.",
+      ],
+      mid: [
+        "In review. I'll need to see your comments before anything moves further — I'm not signing off on something I haven't read.",
+        "Noted as in review. Just make sure this doesn't go anywhere until I've had a look.",
+      ],
+      low: [
+        "Fine, in review. I'll look at it when I can.",
+        "Noted. I'll follow up separately.",
+      ],
+    },
+    toDone: {
+      natural: [
+        "Good. Let me know if you need anything for the board brief.",
+        "Closed out — I'll note it on my end.",
+      ],
+      earlyClose: [
+        "This isn't done — I haven't signed off on it yet. Marking it done without my review is exactly the kind of thing that creates problems on Monday.",
+        "I need to review this before it gets closed. Marking it done without me creates a gap in the process.",
+        "Please reopen that. I haven't seen this yet and I'm not comfortable with it being marked complete.",
+      ],
+      low: [
+        "I'm going to reopen that. I haven't reviewed it and I won't have my sign-off skipped on something that goes to the board.",
+        "That's not correct. This hasn't been through the proper review. I'll flag it as still in progress.",
+      ],
+    },
+    toBacklog: [
+      "Moving this back is fine — but if the priority has changed, I want to understand why before it affects the board timeline.",
+      "Noted. Just let me know when it comes back up — I don't want to be caught off guard on Monday.",
+    ],
+  },
+
+  elena: {
+    toInProgress: {
+      high: [
+        "Good call on prioritising this. Whatever comes out — I need it by Friday 9am.",
+        "Noted. Keep me posted on status — if this affects the board narrative I need to know before Monday.",
+        "Moving in the right direction. Make sure whatever comes out of this is decision-ready — not a summary, a recommendation.",
+      ],
+      mid: [
+        "Good. I just need the output to be board-ready. If there are trade-offs, document them — don't smooth them over.",
+        "Noted the priority. I'm available EOD if you need to align before this moves further.",
+      ],
+      low: [
+        "Noted. I need the output by Friday regardless of process — the board timeline doesn't move.",
+        "Fine. Just make sure I see it before it goes anywhere.",
+      ],
+    },
+    toReview: {
+      high: [
+        "At your end. I'll need a final version by Thursday EOD — that gives me time to prep for Monday.",
+        "Good. If there's a recommendation in here, make sure it's clearly marked — I don't want to have to hunt for it.",
+      ],
+      mid: [
+        "In review. Needs to be final by Thursday — I have board prep Friday morning.",
+        "Noted. Make sure this is ready for an external audience, not just an internal one.",
+      ],
+      low: [
+        "Noted. I'll look at it when I can.",
+        "Fine. Let me know when it's actually ready.",
+      ],
+    },
+    toDone: {
+      natural: [
+        "Good. Make sure the output is documented somewhere I can reference on Monday.",
+        "Closed. If this feeds into the board deck, send me the relevant section directly.",
+      ],
+      earlyClose: [
+        "Is this actually resolved? The board will ask about it on Monday — I need substance, not a closed ticket.",
+        "Closing this out without a resolution doesn't work for me. What's the actual answer?",
+        "I need this to be genuinely done, not administratively done. What's the deliverable?",
+      ],
+      low: [
+        "I'm going to need more than a closed card. What's the actual output here?",
+        "That's not done from my perspective. The board question hasn't been answered.",
+      ],
+    },
+    toBacklog: [
+      "Moving this back is a risk given the Monday deadline. I'll note it — but I'll need it back in active by Wednesday at the latest.",
+      "Noted. Just don't lose track of it — this needs to be resolved before the board meeting.",
+    ],
+  },
+};
