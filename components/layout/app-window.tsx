@@ -221,10 +221,10 @@ export function AppWindow({
   const animClass = isMinimizing ? 'window-minimizing' : justRestored ? 'window-restoring' : '';
 
   return (
-    <div style={windowStyle} className={animClass || undefined}>
+    <div style={windowStyle} className={['app-window-mobile', animClass].filter(Boolean).join(' ')}>
       {/* Resize handles */}
       {!maximized && pos && HANDLES.map(dir => (
-        <div key={dir} style={handleStyle(dir)} onMouseDown={onResizeDown(dir)} />
+        <div key={dir} className="resize-handle-overlay" style={handleStyle(dir)} onMouseDown={onResizeDown(dir)} />
       ))}
 
       {/* Titlebar */}
@@ -240,6 +240,7 @@ export function AppWindow({
       >
         {/* Traffic lights */}
         <div
+          className="traffic-lights-group"
           style={{ display: 'flex', gap: 7, alignItems: 'center' }}
           onMouseEnter={e => e.currentTarget.querySelectorAll('span').forEach(s => (s.style.opacity = '1'))}
           onMouseLeave={e => e.currentTarget.querySelectorAll('span').forEach(s => (s.style.opacity = '0'))}

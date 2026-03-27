@@ -127,6 +127,7 @@ export function WindowChrome({
       }}>
         {/* Traffic lights */}
         <div
+          className="traffic-lights-group"
           style={{ display: 'flex', gap: 7, alignItems: 'center', flexShrink: 0 }}
           onMouseEnter={e => {
             e.currentTarget.querySelectorAll('.tl-icon').forEach(el => {

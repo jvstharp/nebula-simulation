@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
+import React, { useState } from "react";
 import { useAppStore } from "@/lib/store";
+import type { Screen } from "@/lib/types";
 
 /* ── Dock Icon SVGs (white-on-color — renders on 3D gradient backgrounds) ─── */
 
@@ -95,6 +96,63 @@ const DOCK_ITEMS = [
   { id: 'controlpanel', label: 'Control Panel', base: '#d97706', lighter: '#f59e0b', darker: '#92400e', icon: <ControlPanelDockIcon />, screen: 'controlpanel' as const },
 ];
 
+/* ── Mobile bottom navigation bar ─────────────────────────────────────────── */
+function MobileNav() {
+  const { screen, setScreen, setControlPanelOpen } = useAppStore();
+  return (
+    <nav
+      className="mobile-nav-bar"
+      style={{
+        display: 'none', /* overridden to flex by mobile.css */
+        position: 'fixed',
+        bottom: 0, left: 0, right: 0,
+        height: 'calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px))',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        background: 'var(--bg-titlebar)',
+        borderTop: '1px solid var(--border-subtle)',
+        alignItems: 'center',
+        justifyContent: 'space-around',
+        zIndex: 200,
+      }}
+    >
+      {(DOCK_ITEMS as Array<{ id: string; label: string; base: string; icon: React.ReactNode; screen: Screen | 'controlpanel' }>).map(item => {
+        const isActive = screen === item.screen;
+        return (
+          <button
+            key={item.id}
+            onClick={() => item.id === 'controlpanel' ? setControlPanelOpen(true) : setScreen(item.screen as Screen)}
+            style={{
+              flex: 1, height: '100%',
+              background: 'none', border: 'none',
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+              gap: 4, cursor: 'pointer',
+              color: isActive ? item.base : 'rgba(240,240,243,0.38)',
+              transition: 'color 150ms',
+            }}
+          >
+            <span style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 28, height: 28, borderRadius: 8,
+              background: isActive ? `${item.base}22` : 'transparent',
+              transition: 'background 150ms',
+            }}>
+              {item.icon}
+            </span>
+            {isActive && (
+              <span style={{
+                width: 4, height: 4, borderRadius: '50%',
+                background: item.base,
+                boxShadow: `0 0 6px ${item.base}`,
+              }} />
+            )}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
 /* ── Desktop Screen ────────────────────────────────────────────────────────── */
 export function DesktopScreen() {
   const { setScreen, minimizedWindows, restoreWindow, setControlPanelOpen } = useAppStore();
@@ -127,7 +185,7 @@ export function DesktopScreen() {
       }}
     >
       {/* ── Status bar ─────────────────────────────────────────────── */}
-      <div style={{
+      <div className="desktop-status-bar" style={{
         position: 'absolute', top: 18, left: 18,
         display: 'flex', alignItems: 'center', gap: 10, zIndex: 10,
       }}>
@@ -148,7 +206,7 @@ export function DesktopScreen() {
       </div>
 
       {/* ── Dock ───────────────────────────────────────────────────── */}
-      <div style={{
+      <div className="desktop-dock-wrap" style={{
         position: 'absolute',
         bottom: 28,
         left: '50%',
@@ -260,6 +318,9 @@ export function DesktopScreen() {
           </>
         )}
       </div>
+
+      {/* ── Mobile bottom navigation (CSS-hidden on desktop) ─────── */}
+      <MobileNav />
     </div>
   );
 }

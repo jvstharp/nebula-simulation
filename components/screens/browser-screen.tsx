@@ -198,7 +198,7 @@ function EmailTab() {
   return (
     <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
       {/* Folder sidebar */}
-      <div style={{
+      <div className="email-sidebar-panel" style={{
         width: 148, flexShrink: 0,
         background: '#212121',
         borderRight: '1px solid rgba(255,255,255,0.04)',
@@ -231,7 +231,7 @@ function EmailTab() {
       </div>
 
       {/* Thread list */}
-      <div style={{
+      <div className={`email-list-panel${selectedPartnerId ? ' panel-hidden' : ''}`} style={{
         width: 270, flexShrink: 0,
         borderRight: '1px solid rgba(255,255,255,0.04)',
         overflowY: 'auto', display: 'flex', flexDirection: 'column',
@@ -309,7 +309,20 @@ function EmailTab() {
       </div>
 
       {/* Reading pane */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '24px 28px', display: 'flex', flexDirection: 'column' }}>
+      <div className={`email-detail-panel${!selectedPartnerId ? ' panel-hidden' : ''}`} style={{ flex: 1, overflow: 'auto', padding: '24px 28px', display: 'flex', flexDirection: 'column' }}>
+        {/* Mobile back button */}
+        <button
+          onClick={() => setSelectedPartnerId(null)}
+          className="mobile-back-btn"
+          style={{
+            display: 'none', /* shown via mobile.css */
+            alignItems: 'center', gap: 6,
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: 'rgba(175,163,159,0.7)', fontSize: 13, padding: '0 0 16px',
+          }}
+        >
+          ← Back to inbox
+        </button>
         {thread.length > 0 && selectedChar ? (
           <>
             <h2 style={{ fontSize: 18, fontWeight: 700, color: '#efefef', marginBottom: 20 }}>
@@ -484,7 +497,7 @@ function ChatTab() {
   return (
     <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
       {/* Sidebar */}
-      <div style={{
+      <div className={`chat-sidebar-panel${activeDMId ? ' panel-hidden' : ''}`} style={{
         width: 200, flexShrink: 0,
         background: '#212121',
         borderRight: '1px solid rgba(255,255,255,0.04)',
@@ -546,6 +559,7 @@ function ChatTab() {
       </div>
 
       {/* Main pane */}
+      <div className={`chat-main-panel${activeDMId ? ' panel-visible' : ''}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {activeDMId ? (
         /* DM view */
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -644,6 +658,7 @@ function ChatTab() {
           </div>
         </div>
       )}
+      </div>{/* /chat-main-panel */}
     </div>
   );
 }
@@ -817,12 +832,13 @@ function KanbanBoard() {
       </div>
 
       {/* Columns */}
-      <div style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', padding: '14px 18px', display: 'flex', gap: 12 }}>
+      <div className="kanban-board" style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', padding: '14px 18px', display: 'flex', gap: 12 }}>
         {columns.map(col => {
           const isTarget = dragOverColId === col.id;
           return (
             <div
               key={col.id}
+              className="kanban-column-mobile"
               onDragOver={e => handleDragOver(e, col.id)}
               onDragLeave={() => { if (dragOverColId === col.id) setDragOverColId(null); }}
               onDrop={e => handleDrop(e, col.id)}
@@ -3087,7 +3103,7 @@ export function BrowserScreen() {
       maxWidth={1280}
     >
         {/* Tab bar */}
-        <div style={{
+        <div className="browser-tab-bar" style={{
           display: 'flex', alignItems: 'stretch',
           background: 'transparent',
           borderBottom: '1px solid rgba(255,255,255,0.04)',

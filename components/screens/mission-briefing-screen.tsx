@@ -187,10 +187,11 @@ export function MissionBriefingScreen() {
     <div
       ref={containerRef}
       onMouseMove={handleMouseMove}
+      className="mission-layout"
       style={{ position: 'fixed', inset: 0, background: bg, display: 'flex', fontFamily: 'inherit', zIndex: 100, overflow: 'hidden' }}
     >
       {/* ── LEFT PANEL ─────────────────────────────────────────────────────── */}
-      <div style={{ position: 'relative', width: '42%', flexShrink: 0, overflow: 'hidden' }}>
+      <div className="mission-photo-panel" style={{ position: 'relative', width: '42%', flexShrink: 0, overflow: 'hidden' }}>
 
         {/* Office photo with parallax */}
         <div style={{ position: 'absolute', inset: -16, overflow: 'hidden' }}>
@@ -246,7 +247,7 @@ export function MissionBriefingScreen() {
       </div>
 
       {/* ── RIGHT PANEL ────────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div className="mission-content-panel" style={{ flex: 1, overflowY: 'auto' }}>
         <div style={{
           minHeight: '100%', boxSizing: 'border-box',
           padding: '52px 52px 52px 40px',
