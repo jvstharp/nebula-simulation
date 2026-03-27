@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { Character, CharacterId, Message, SessionState, Screen, AppTab, BrowserTab, ChaosEvent, OKR, PortfolioCaseStudy, AccessibilityPrefs, SimulationStage, KanbanCard, KanbanColumn } from './types';
 import { CHARACTERS, INITIAL_SESSION, INITIAL_MESSAGES, INITIAL_OKRS, REPLY_MAP, INITIAL_KANBAN_COLUMNS, CARD_REACTION_MAP } from './data';
 import { getSoundscape } from './soundscape';
@@ -179,7 +180,7 @@ interface AppStore {
   dismissConstraintToast: (id: string) => void;
 }
 
-export const useAppStore = create<AppStore>((set, get) => ({
+export const useAppStore = create<AppStore>()(persist((set, get) => ({
   screen: 'login',
   activeApp: 'browser',
   activeBrowserTab: 'email',
@@ -754,6 +755,33 @@ export const useAppStore = create<AppStore>((set, get) => ({
   dismissConstraintToast: (id) => set(s => ({
     constraintToasts: s.constraintToasts.filter(t => t.id !== id),
   })),
+}), {
+  name: 'nebula-store-v1',
+  partialize: (state) => ({
+    user: state.user,
+    screen: state.screen,
+    userProfile: state.userProfile,
+    onboardingStep: state.onboardingStep,
+    assessmentAnswers: state.assessmentAnswers,
+    dbSessionId: state.dbSessionId,
+    session: state.session,
+    characters: state.characters,
+    messages: state.messages,
+    kanbanColumns: state.kanbanColumns,
+    revealedConstraints: state.revealedConstraints,
+  }),
+  onRehydrateStorage: () => (state) => {
+    // JSON serialisation turns Date objects into strings — restore them
+    if (state?.session?.startedAt) {
+      state.session.startedAt = new Date(state.session.startedAt as unknown as string);
+    }
+    if (state?.messages) {
+      state.messages = state.messages.map(m => ({
+        ...m,
+        timestamp: new Date(m.timestamp as unknown as string),
+      }));
+    }
+  },
 }));
 
 // Expose store globally for dev navigation
