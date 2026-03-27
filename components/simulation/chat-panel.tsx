@@ -20,10 +20,11 @@ function TypingIndicator({ char }: { char: Character }) {
 }
 
 export function ChatPanel() {
-  const { messages, sendMessage, setActiveCharacter, activeCharacter, chatInput, setChatInput, characters, voiceMode, setVoiceMode } = useAppStore();
+  const { messages, sendMessage, setActiveCharacter, activeCharacter, chatInput, setChatInput, characters } = useAppStore();
   const [selectedChar, setSelectedChar] = useState<Character>(characters[0]);
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [voiceMode, setVoiceMode] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
 
