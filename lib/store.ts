@@ -116,7 +116,7 @@ interface AppStore {
   restoreWindow: (screen: Screen) => void;
 
   // Auth
-  user: { name: string; email: string; credits: number } | null;
+  user: { id: string; name: string; email: string; credits: number; avatar?: string } | null;
   setUser: (u: AppStore['user']) => void;
 
   // Backend session ID (mirrors DB record)
