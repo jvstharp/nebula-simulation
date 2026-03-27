@@ -15,6 +15,7 @@ interface RequestBody {
   triggerType: TriggerType;
   triggerBody: string;
   recentMessages: Array<{ from: string; body: string; channel: string }>;
+  companyContext?: { name: string; industry: string; size: string; challenge: string } | null;
   characterState: {
     name: string;
     title: string;
@@ -68,10 +69,19 @@ function buildSystemPrompt(body: RequestBody): string {
     ? 'CHAOS ACTIVE: Engineering is in a capacity crisis — factor this into any engineering-related response.'
     : '';
 
-  return `You are roleplaying as ${char.name}, ${char.title} at Nexus Technologies — a 300-person B2B SaaS company 10 days after closing a $12M Series C.
+  const company = body.companyContext;
+  const companyName = company?.name ?? 'Nexus Technologies';
+  const companyDesc = company
+    ? `${company.name} — ${company.size} in ${company.industry}`
+    : 'Nexus Technologies — a 300-person B2B SaaS company 10 days after closing a $12M Series C';
+  const scenarioContext = company
+    ? `The incoming PM (the user) is new to ${company.name} and has walked into a high-stakes situation: ${company.challenge} There is a hard board deadline approaching and multiple stakeholders with conflicting priorities. Key hidden constraints still apply — information is siloed, not everyone knows the full picture, and trust must be earned.`
+    : `The incoming PM (the user) has inherited a three-way roadmap conflict between Engineering, Sales, and Product with a hard Monday board deadline. The Series C lead investor James Whitfield (Sequoia) will be in the Monday board meeting. There is a $3M investor clawback clause tied to an October 1st SSO + audit logging milestone — almost nobody on the team knows about it. Key hidden constraints: Marcus has identified WorkOS (a third-party SSO integration) that would collapse a 6-week build to 2 weeks, but nobody asked; Tom's Acme commitment is "best efforts" language not a hard contract; Priya has conversion research nobody has acted on; Elena is the only one who knows about the clawback.`;
+
+  return `You are roleplaying as ${char.name}, ${char.title} at ${companyDesc}.
 
 SCENARIO CONTEXT:
-The incoming PM (the user) has inherited a three-way roadmap conflict between Engineering, Sales, and Product with a hard Monday board deadline. The Series C lead investor James Whitfield (Sequoia) will be in the Monday board meeting. There is a $3M investor clawback clause tied to an October 1st SSO + audit logging milestone — almost nobody on the team knows about it. Key hidden constraints: Marcus has identified WorkOS (a third-party SSO integration) that would collapse a 6-week build to 2 weeks, but nobody asked; Tom's Acme commitment is "best efforts" language not a hard contract; Priya has conversion research nobody has acted on; Elena is the only one who knows about the clawback.
+${scenarioContext}
 
 YOUR PROFILE:
 - Personality: ${char.personality}

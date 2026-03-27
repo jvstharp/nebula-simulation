@@ -169,6 +169,10 @@ interface AppStore {
   setOnboardingStep: (n: number) => void;
   setAssessmentAnswer: (i: number, v: number) => void;
 
+  // User profile (collected during onboarding)
+  userProfile: import('./types').UserProfile | null;
+  setUserProfile: (p: Partial<import('./types').UserProfile>) => void;
+
   // Constraint discovery
   revealedConstraints: string[];
   constraintToasts: Array<{ id: string; constraint: string; label: string; characterName: string }>;
@@ -269,7 +273,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       activeCharacter.id,
       'message_reply',
       body,
-      { character: activeCharacter, recentMessages: messages, session: session!, kanbanColumns }
+      { character: activeCharacter, recentMessages: messages, session: session!, kanbanColumns, companyContext: get().userProfile?.chosenCompany }
     ).then(result => {
       const fallbackPool = REPLY_MAP[activeCharacter.id] || [];
       const text = result.reply ?? (fallbackPool[Math.floor(Math.random() * fallbackPool.length)] || "I'll get back to you on this.");
@@ -451,7 +455,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
             characterId,
             'card_advanced_autonomous',
             `You are moving "${cardSnapshot.title}" to ${toColSnapshot === 'inprogress' ? 'In Progress' : 'Review'}.`,
-            { character: advChar, recentMessages: get().messages, session: get().session!, kanbanColumns: get().kanbanColumns }
+            { character: advChar, recentMessages: get().messages, session: get().session!, kanbanColumns: get().kanbanColumns, companyContext: get().userProfile?.chosenCompany }
           ).then(result => {
             injectMessage(characterId as CharacterId, result.reply ?? fallbackMsg, 'chat');
           });
@@ -722,7 +726,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       characterId,
       triggerType,
       triggerBody,
-      { character: char, recentMessages: get().messages, session: session!, kanbanColumns: get().kanbanColumns }
+      { character: char, recentMessages: get().messages, session: session!, kanbanColumns: get().kanbanColumns, companyContext: get().userProfile?.chosenCompany }
     ).then(result => {
       const text = result.reply ?? pick(pool);
       setTimeout(() => {
@@ -734,6 +738,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
   onboardingStep: 0,
   assessmentAnswers: [],
   setOnboardingStep: (onboardingStep) => set({ onboardingStep }),
+
+  userProfile: null,
+  setUserProfile: (p) => set(s => ({
+    userProfile: { ...s.userProfile, role: '', experienceLevel: 'mid', domain: '', chosenCompany: null, ...s.userProfile, ...p },
+  })),
   setAssessmentAnswer: (i, v) => {
     const answers = [...get().assessmentAnswers];
     answers[i] = v;

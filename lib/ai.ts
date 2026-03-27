@@ -1,4 +1,4 @@
-import type { Character, KanbanColumn, Message, SessionState } from './types';
+import type { Character, KanbanColumn, Message, SessionState, SimCompany } from './types';
 
 export type TriggerType =
   | 'message_reply'
@@ -37,6 +37,7 @@ export async function generateCharacterReply(
     recentMessages: Message[];
     session: SessionState;
     kanbanColumns: KanbanColumn[];
+    companyContext?: SimCompany | null;
   }
 ): Promise<CharacterReplyResult> {
   const assigneeInitial = ASSIGNEE_INITIAL[characterId];
@@ -70,6 +71,7 @@ export async function generateCharacterReply(
         triggerType,
         triggerBody,
         recentMessages: recent,
+        companyContext: state.companyContext ?? null,
         characterState: {
           name: state.character.name,
           title: state.character.title,

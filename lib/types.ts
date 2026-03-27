@@ -165,7 +165,25 @@ export interface SkillScores {
   executionSpeed: number;
 }
 
-export type Screen = 'desktop' | 'login' | 'register' | 'onboarding' | 'assessment' | 'mission-briefing' | 'office-intro' | 'prologue' | 'board-meeting' | 'dashboard' | 'simulation' | 'replay' | 'progress' | 'admin' | 'discovery' | 'browser' | 'vault' | 'profile' | 'controlpanel';
+export interface SimCompany {
+  id: string;           // slug, e.g. "meridian-health"
+  name: string;         // "Meridian Health"
+  industry: string;     // "Digital Health"
+  size: string;         // "220 people, Series B"
+  tagline: string;      // one-line mission
+  challenge: string;    // the PM challenge the user will face (2-3 sentences)
+  why: string;          // why it matches the user's profile (1 sentence)
+  videoKeyword: string; // used for Pexels video search e.g. "hospital technology"
+}
+
+export interface UserProfile {
+  role: string;
+  experienceLevel: 'junior' | 'mid' | 'senior';
+  domain: string;
+  chosenCompany: SimCompany | null;
+}
+
+export type Screen = 'desktop' | 'login' | 'register' | 'onboarding' | 'assessment' | 'mission-briefing' | 'office-intro' | 'prologue' | 'board-meeting' | 'dashboard' | 'simulation' | 'replay' | 'progress' | 'admin' | 'discovery' | 'browser' | 'vault' | 'profile' | 'controlpanel' | 'company-overview';
 
 export type AppTab = 'browser' | 'meetings' | 'drive' | 'assistant' | 'project';
 

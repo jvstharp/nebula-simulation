@@ -1,8 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
-
-const inter = Inter({ subsets: ["latin"], display: "swap", variable: "--font-inter", weight: ["400","500","600","700"] });
 
 export const metadata: Metadata = {
   title: "Nebula — Career Simulation Platform",
@@ -11,8 +8,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`dark ${inter.variable}`}>
-      <body className="text-white antialiased">{children}</body>
+    <html lang="en" className="dark">
+      <body className="text-white antialiased" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>{children}</body>
     </html>
   );
 }

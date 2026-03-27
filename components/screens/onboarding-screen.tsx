@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { useAppStore } from "@/lib/store";
 import { Avatar } from "@/components/ui/avatar";
 import { CHARACTERS } from "@/lib/data";
+import type { SimCompany } from "@/lib/types";
 
 const T = {
   bg:       '#121212',
@@ -139,32 +140,79 @@ function CharProfile({ char }: { char: typeof CHARACTERS[number] }) {
   );
 }
 
+/* ── Company Card ────────────────────────────────────────────────────────────── */
+function CompanyCard({ company, onSelect, selected }: { company: SimCompany; onSelect: (c: SimCompany) => void; selected: boolean }) {
+  return (
+    <div style={{
+      background: selected ? `${T.primary}14` : 'rgba(255,255,255,0.03)',
+      border: `1px solid ${selected ? T.primary + '55' : 'rgba(255,255,255,0.09)'}`,
+      borderRadius: 12, padding: '14px 16px', cursor: 'pointer',
+      transition: 'all 0.18s ease',
+    }} onClick={() => onSelect(company)}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 2 }}>{company.name}</div>
+          <div style={{ fontSize: 11.5, color: T.muted }}>{company.size} · {company.industry}</div>
+        </div>
+        {selected && <div style={{ width: 18, height: 18, borderRadius: '50%', background: T.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l2.5 2.5L9 1" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </div>}
+      </div>
+      <p style={{ fontSize: 12, color: 'rgba(175,163,159,0.7)', lineHeight: 1.55, margin: '0 0 8px', fontStyle: 'italic' }}>&ldquo;{company.tagline}&rdquo;</p>
+      <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.55, marginBottom: 6 }}>
+        <span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.5)', fontSize: 10, letterSpacing: '0.07em', textTransform: 'uppercase' }}>Your challenge </span>
+        {company.challenge}
+      </div>
+      <div style={{ fontSize: 11.5, color: T.primary, lineHeight: 1.5 }}>
+        <span style={{ fontWeight: 600, fontSize: 10, letterSpacing: '0.07em', textTransform: 'uppercase', opacity: 0.7 }}>Why this fits </span>
+        {company.why}
+      </div>
+    </div>
+  );
+}
+
 /* ── AI Onboarding Chat ──────────────────────────────────────────────────────── */
-function OnboardingChat({ userName, onComplete, onSkip }: { userName: string; onComplete: () => void; onSkip: () => void }) {
-  const firstMsg = `Hi ${userName}, I'm Alex — I help new PMs get oriented before they meet the team. Quick chat before I hand you over. I'll ask a few questions about how you work — no trick answers, just be direct. What kind of PM work have you been doing up to now?`;
+function OnboardingChat({ userName, onComplete, onSkip }: { userName: string; onComplete: (company: SimCompany) => void; onSkip: () => void }) {
+  const firstMsg = `Hi ${userName}, I'm Alex. I'll match you to the right company scenario in just a couple of questions. What kind of product work have you been doing, and in what industry?`;
   const [msgs, setMsgs] = useState<ChatMsg[]>([{ role: 'alex', text: firstMsg, id: 'init' }]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [chatDone, setChatDone] = useState(false);
+  const [companies, setCompanies] = useState<SimCompany[] | null>(null);
+  const [loadingCompanies, setLoadingCompanies] = useState(false);
+  const [pickedCompany, setPickedCompany] = useState<SimCompany | null>(null);
+  const [conversationContext, setConversationContext] = useState({ role: '', experienceLevel: '', domain: '' });
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [msgs, loading]);
+  }, [msgs, loading, companies, loadingCompanies]);
 
-  useEffect(() => {
-    if (!chatDone) return;
-    const t = setTimeout(() => onComplete(), 1500);
-    return () => clearTimeout(t);
-  }, [chatDone, onComplete]);
+  const fetchCompanies = async (allMsgs: ChatMsg[]) => {
+    setLoadingCompanies(true);
+    try {
+      const summary = allMsgs.filter(m => m.role === 'user').map(m => m.text).join(' | ');
+      const res = await fetch('/api/onboarding/companies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...conversationContext, conversationSummary: summary }),
+      });
+      const data = await res.json();
+      setCompanies(data.companies ?? []);
+    } catch {
+      setCompanies([]);
+    } finally {
+      setLoadingCompanies(false);
+    }
+  };
 
-  const sendMessage = async () => {
-    const text = input.trim();
+  const sendMessage = async (overrideText?: string) => {
+    const text = (overrideText ?? input).trim();
     if (!text || loading) return;
     const newMsg: ChatMsg = { role: 'user', text, id: Date.now().toString() };
     const updated = [...msgs, newMsg];
     setMsgs(updated);
-    setInput('');
+    if (!overrideText) setInput('');
     setLoading(true);
     try {
       const apiMessages = updated.map(m => ({
@@ -177,15 +225,28 @@ function OnboardingChat({ userName, onComplete, onSkip }: { userName: string; on
         body: JSON.stringify({ messages: apiMessages, userName }),
       });
       const data = await res.json();
-      const reply = data.reply ?? "Alright, head on through — the team is expecting you.";
-      setMsgs(prev => [...prev, { role: 'alex', text: reply, id: Date.now().toString() }]);
+      const reply = data.reply ?? "Let me find some options for you.";
+      const withReply = [...updated, { role: 'alex' as const, text: reply, id: Date.now().toString() }];
+      setMsgs(withReply);
       if (data.complete) setChatDone(true);
+      if (data.generateCompanies) {
+        // Infer context from conversation for the companies API
+        const userTexts = updated.filter(m => m.role === 'user').map(m => m.text).join(' ');
+        setConversationContext({ role: 'Product Manager', experienceLevel: 'mid', domain: userTexts.slice(0, 200) });
+        fetchCompanies(withReply);
+      }
     } catch {
-      setMsgs(prev => [...prev, { role: 'alex', text: "Head through to meet the team — they're expecting you.", id: 'err' }]);
-      setChatDone(true);
+      setMsgs(prev => [...prev, { role: 'alex', text: "Let me pull up some options for you.", id: 'err' }]);
+      fetchCompanies(msgs);
     } finally {
       setLoading(false);
     }
+  };
+
+  const pickCompany = (company: SimCompany) => {
+    setPickedCompany(company);
+    setCompanies(null); // hide cards after pick
+    sendMessage(`I'd like to work at ${company.name}.`);
   };
 
   return (
@@ -194,7 +255,7 @@ function OnboardingChat({ userName, onComplete, onSkip }: { userName: string; on
       <div style={{ flexShrink: 0, padding: '10px 20px 12px', display: 'flex', justifyContent: 'center' }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 14px', borderRadius: 99, background: T.surface, border: `1px solid ${T.border2}`, fontSize: 11, color: T.muted, letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
-          Onboarding — Alex, HR Coordinator
+          Onboarding — Alex, Coordinator
         </div>
       </div>
 
@@ -214,7 +275,9 @@ function OnboardingChat({ userName, onComplete, onSkip }: { userName: string; on
             }}>{m.text}</div>
           </div>
         ))}
-        {loading && (
+
+        {/* Loading indicator */}
+        {(loading || loadingCompanies) && (
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
             <div style={{ width: 28, height: 28, borderRadius: '50%', background: T.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>A</div>
             <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px 12px 12px 4px', padding: '12px 16px', display: 'flex', gap: 5 }}>
@@ -222,11 +285,29 @@ function OnboardingChat({ userName, onComplete, onSkip }: { userName: string; on
             </div>
           </div>
         )}
+
+        {/* Company cards */}
+        {companies && companies.length > 0 && !pickedCompany && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0' }}>
+            <div style={{ fontSize: 11, color: 'rgba(175,163,159,0.5)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 2 }}>Choose your scenario</div>
+            {companies.map(c => (
+              <CompanyCard key={c.id} company={c} onSelect={pickCompany} selected={false} />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Input bar — sticky to bottom, keyboard-safe */}
       <div style={{ flexShrink: 0, borderTop: `1px solid ${T.border2}`, background: T.bg, padding: '12px 16px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))' }}>
-        {!chatDone ? (
+        {chatDone && pickedCompany ? (
+          <button
+            onClick={() => onComplete(pickedCompany)}
+            style={{ width: '100%', padding: '13px 20px', borderRadius: 10, background: T.primary, border: 'none', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+            Explore {pickedCompany.name} →
+          </button>
+        ) : companies && !pickedCompany ? (
+          <p style={{ fontSize: 12.5, color: T.muted, textAlign: 'center', margin: '4px 0' }}>Select a company above to continue</p>
+        ) : !chatDone ? (
           <div style={{ display: 'flex', gap: 10 }}>
             <textarea
               value={input}
@@ -236,13 +317,13 @@ function OnboardingChat({ userName, onComplete, onSkip }: { userName: string; on
               rows={2}
               style={{ flex: 1, background: T.surface, border: `1px solid ${T.border2}`, borderRadius: 10, padding: '10px 14px', fontSize: 13.5, color: T.text, resize: 'none' as const, fontFamily: 'inherit', outline: 'none', lineHeight: 1.5 }}
             />
-            <button onClick={sendMessage} disabled={!input.trim() || loading}
+            <button onClick={() => sendMessage()} disabled={!input.trim() || loading}
               style={{ padding: '0 20px', borderRadius: 10, background: T.primary, border: 'none', color: '#fff', fontSize: 13.5, fontWeight: 600, cursor: !input.trim() || loading ? 'not-allowed' : 'pointer', opacity: !input.trim() || loading ? 0.4 : 1, fontFamily: 'inherit' }}>
               Send
             </button>
           </div>
         ) : (
-          <p style={{ fontSize: 13, color: T.muted, textAlign: 'center', margin: '4px 0 0' }}>Heading to the team...</p>
+          <p style={{ fontSize: 13, color: T.muted, textAlign: 'center', margin: '4px 0 0' }}>Setting up your scenario...</p>
         )}
         <div style={{ textAlign: 'center', marginTop: 10 }}>
           <button onClick={onSkip} style={{ fontSize: 12, color: 'rgba(175,163,159,0.35)', background: 'none', border: 'none', cursor: 'pointer' }}>Skip prologue</button>
@@ -256,7 +337,7 @@ function OnboardingChat({ userName, onComplete, onSkip }: { userName: string; on
 
 /* ── Main component ─────────────────────────────────────────────────────────── */
 export function OnboardingScreen() {
-  const { setScreen, setOnboardingStep, onboardingStep, user } = useAppStore();
+  const { setScreen, setOnboardingStep, onboardingStep, user, setUserProfile } = useAppStore();
   const [visible, setVisible] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const TOTAL_STEPS = 3; // 0=chat, 1=team, 2=tutorial
@@ -268,6 +349,11 @@ export function OnboardingScreen() {
     } else {
       setScreen('assessment');
     }
+  };
+
+  const handleChatComplete = (company: import('@/lib/types').SimCompany) => {
+    setUserProfile({ chosenCompany: company });
+    setScreen('company-overview');
   };
 
   const scene = onboardingStep > 0 ? SCENES[onboardingStep - 1] : null;
@@ -283,7 +369,7 @@ export function OnboardingScreen() {
             <div key={i} style={{ height: 4, width: i === onboardingStep ? 24 : 8, borderRadius: 99, background: i === onboardingStep ? T.primary : i < onboardingStep ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)', transition: 'all 0.25s ease' }} />
           ))}
         </div>
-        <OnboardingChat userName={userName} onComplete={advance} onSkip={() => setScreen('assessment')} />
+        <OnboardingChat userName={userName} onComplete={handleChatComplete} onSkip={() => setScreen('assessment')} />
       </div>
     );
   }

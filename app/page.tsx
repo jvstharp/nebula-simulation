@@ -18,6 +18,7 @@ import { PrologueScreen } from "@/components/screens/prologue-screen";
 import { BoardMeetingScreen } from "@/components/screens/board-meeting-screen";
 import { ControlPanelPopover } from "@/components/screens/control-panel-screen";
 import { ChaosOverlay } from "@/components/screens/chaos-overlay";
+import { CompanyOverviewScreen } from "@/components/screens/company-overview-screen";
 
 /* ── Trust delta toast ─────────────────────────────────────────────────────── */
 function TrustToast() {
@@ -95,8 +96,9 @@ export default function Home() {
     <>
       {screen === 'login'      && <LoginScreen />}
       {screen === 'register'   && <LoginScreen />}
-      {screen === 'onboarding'       && <OnboardingScreen />}
-      {screen === 'mission-briefing' && <MissionBriefingScreen />}
+      {screen === 'onboarding'        && <OnboardingScreen />}
+      {screen === 'company-overview'  && <CompanyOverviewScreen />}
+      {screen === 'mission-briefing'  && <MissionBriefingScreen />}
       {screen === 'assessment'       && <AssessmentScreen />}
       {screen === 'office-intro'     && <OfficeIntroScreen />}
       {screen === 'prologue'         && <PrologueScreen />}
