@@ -140,8 +140,8 @@ function CharProfile({ char }: { char: typeof CHARACTERS[number] }) {
 }
 
 /* ── AI Onboarding Chat ──────────────────────────────────────────────────────── */
-function OnboardingChat({ userName, onComplete }: { userName: string; onComplete: () => void }) {
-  const firstMsg = `Morning, ${userName}. I'm Alex — I coordinate onboarding for all new leads here at Nexus. Before I hand you over to the team, I want to get a quick sense of where you're coming from. What's your background in product — what kind of PM challenges have you handled before?`;
+function OnboardingChat({ userName, onComplete, onSkip }: { userName: string; onComplete: () => void; onSkip: () => void }) {
+  const firstMsg = `Hi ${userName}, I'm Alex — I help new PMs get oriented before they meet the team. Quick chat before I hand you over. I'll ask a few questions about how you work — no trick answers, just be direct. What kind of PM work have you been doing up to now?`;
   const [msgs, setMsgs] = useState<ChatMsg[]>([{ role: 'alex', text: firstMsg, id: 'init' }]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -151,6 +151,12 @@ function OnboardingChat({ userName, onComplete }: { userName: string; onComplete
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [msgs, loading]);
+
+  useEffect(() => {
+    if (!chatDone) return;
+    const t = setTimeout(() => onComplete(), 1500);
+    return () => clearTimeout(t);
+  }, [chatDone, onComplete]);
 
   const sendMessage = async () => {
     const text = input.trim();
@@ -171,7 +177,7 @@ function OnboardingChat({ userName, onComplete }: { userName: string; onComplete
         body: JSON.stringify({ messages: apiMessages, userName }),
       });
       const data = await res.json();
-      const reply = data.reply ?? "Let's get you set up.";
+      const reply = data.reply ?? "Alright, head on through — the team is expecting you.";
       setMsgs(prev => [...prev, { role: 'alex', text: reply, id: Date.now().toString() }]);
       if (data.complete) setChatDone(true);
     } catch {
@@ -183,17 +189,17 @@ function OnboardingChat({ userName, onComplete }: { userName: string; onComplete
   };
 
   return (
-    <div style={{ width: '100%', maxWidth: 560, display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 14px', borderRadius: 99, background: T.surface, border: `1px solid ${T.border2}`, fontSize: 11, color: T.muted, letterSpacing: '0.06em', textTransform: 'uppercase' as const, marginBottom: 20 }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', width: '100%', maxWidth: 640, margin: '0 auto' }}>
+      {/* Top label */}
+      <div style={{ flexShrink: 0, padding: '10px 20px 12px', display: 'flex', justifyContent: 'center' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 14px', borderRadius: 99, background: T.surface, border: `1px solid ${T.border2}`, fontSize: 11, color: T.muted, letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
           Onboarding — Alex, HR Coordinator
         </div>
-        <h1 style={{ fontSize: 26, fontWeight: 600, color: T.text, marginBottom: 6, letterSpacing: '-0.02em' }}>Day one.</h1>
-        <p style={{ fontSize: 14, color: T.muted, lineHeight: 1.6 }}>Answer honestly. This conversation shapes how the team sees you.</p>
       </div>
 
-      <div ref={scrollRef} style={{ background: T.surface, border: `1px solid ${T.border2}`, borderRadius: 14, padding: 20, maxHeight: 340, overflowY: 'auto' as const, display: 'flex', flexDirection: 'column' as const, gap: 14 }}>
+      {/* Messages */}
+      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', padding: '4px 20px 12px', display: 'flex', flexDirection: 'column', gap: 14 }}>
         {msgs.map(m => (
           <div key={m.id} style={{ display: 'flex', gap: 10, flexDirection: m.role === 'alex' ? 'row' : 'row-reverse' as any, alignItems: 'flex-end' }}>
             {m.role === 'alex' && (
@@ -201,8 +207,8 @@ function OnboardingChat({ userName, onComplete }: { userName: string; onComplete
             )}
             <div style={{
               maxWidth: '78%',
-              background: m.role === 'alex' ? 'rgba(255,255,255,0.04)' : `${T.primary}22`,
-              border: m.role === 'alex' ? '1px solid rgba(255,255,255,0.07)' : `1px solid ${T.primary}44`,
+              background: m.role === 'alex' ? 'rgba(255,255,255,0.05)' : `${T.primary}22`,
+              border: m.role === 'alex' ? '1px solid rgba(255,255,255,0.08)' : `1px solid ${T.primary}44`,
               borderRadius: m.role === 'alex' ? '12px 12px 12px 4px' : '12px 12px 4px 12px',
               padding: '10px 14px', fontSize: 13.5, color: T.text, lineHeight: 1.6,
             }}>{m.text}</div>
@@ -211,34 +217,38 @@ function OnboardingChat({ userName, onComplete }: { userName: string; onComplete
         {loading && (
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
             <div style={{ width: 28, height: 28, borderRadius: '50%', background: T.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>A</div>
-            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '12px 12px 12px 4px', padding: '12px 16px', display: 'flex', gap: 5 }}>
+            <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px 12px 12px 4px', padding: '12px 16px', display: 'flex', gap: 5 }}>
               {[0, 1, 2].map(i => <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: T.muted, animation: `alexPulse 1.2s ${i * 0.2}s ease-in-out infinite` }} />)}
             </div>
           </div>
         )}
       </div>
 
-      {!chatDone ? (
-        <div style={{ display: 'flex', gap: 10 }}>
-          <textarea
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-            placeholder="Type your answer... (Enter to send)"
-            rows={2}
-            style={{ flex: 1, background: T.surface, border: `1px solid ${T.border2}`, borderRadius: 10, padding: '10px 14px', fontSize: 13.5, color: T.text, resize: 'none' as const, fontFamily: 'inherit', outline: 'none', lineHeight: 1.5 }}
-          />
-          <button onClick={sendMessage} disabled={!input.trim() || loading}
-            style={{ padding: '0 20px', borderRadius: 10, background: T.primary, border: 'none', color: '#fff', fontSize: 13.5, fontWeight: 600, cursor: !input.trim() || loading ? 'not-allowed' : 'pointer', opacity: !input.trim() || loading ? 0.4 : 1, fontFamily: 'inherit' }}>
-            Send
-          </button>
+      {/* Input bar — sticky to bottom, keyboard-safe */}
+      <div style={{ flexShrink: 0, borderTop: `1px solid ${T.border2}`, background: T.bg, padding: '12px 16px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))' }}>
+        {!chatDone ? (
+          <div style={{ display: 'flex', gap: 10 }}>
+            <textarea
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+              placeholder="Type your answer... (Enter to send)"
+              rows={2}
+              style={{ flex: 1, background: T.surface, border: `1px solid ${T.border2}`, borderRadius: 10, padding: '10px 14px', fontSize: 13.5, color: T.text, resize: 'none' as const, fontFamily: 'inherit', outline: 'none', lineHeight: 1.5 }}
+            />
+            <button onClick={sendMessage} disabled={!input.trim() || loading}
+              style={{ padding: '0 20px', borderRadius: 10, background: T.primary, border: 'none', color: '#fff', fontSize: 13.5, fontWeight: 600, cursor: !input.trim() || loading ? 'not-allowed' : 'pointer', opacity: !input.trim() || loading ? 0.4 : 1, fontFamily: 'inherit' }}>
+              Send
+            </button>
+          </div>
+        ) : (
+          <p style={{ fontSize: 13, color: T.muted, textAlign: 'center', margin: '4px 0 0' }}>Heading to the team...</p>
+        )}
+        <div style={{ textAlign: 'center', marginTop: 10 }}>
+          <button onClick={onSkip} style={{ fontSize: 12, color: 'rgba(175,163,159,0.35)', background: 'none', border: 'none', cursor: 'pointer' }}>Skip prologue</button>
         </div>
-      ) : (
-        <button onClick={onComplete}
-          style={{ padding: '12px 28px', borderRadius: 10, background: T.primary, border: 'none', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-          Meet the team →
-        </button>
-      )}
+      </div>
+
       <style>{`@keyframes alexPulse { 0%,80%,100%{opacity:.3;transform:scale(.8)} 40%{opacity:1;transform:scale(1)} }`}</style>
     </div>
   );
@@ -263,6 +273,21 @@ export function OnboardingScreen() {
   const scene = onboardingStep > 0 ? SCENES[onboardingStep - 1] : null;
   const userName = user?.name?.split(' ')[0] ?? 'there';
 
+  // Step 0: full-screen chat — keyboard floats on top (100dvh + sticky input)
+  if (onboardingStep === 0) {
+    return (
+      <div style={{ background: T.bg, height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* Progress dots */}
+        <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center', gap: 6, paddingTop: 20, paddingBottom: 4 }}>
+          {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
+            <div key={i} style={{ height: 4, width: i === onboardingStep ? 24 : 8, borderRadius: 99, background: i === onboardingStep ? T.primary : i < onboardingStep ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)', transition: 'all 0.25s ease' }} />
+          ))}
+        </div>
+        <OnboardingChat userName={userName} onComplete={advance} onSkip={() => setScreen('assessment')} />
+      </div>
+    );
+  }
+
   return (
     <div style={{ background: T.bg, minHeight: '100vh', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', top: '30%', left: '50%', transform: 'translate(-50%,-50%)', width: 600, height: 600, borderRadius: '50%', background: 'radial-gradient(circle,rgba(20,123,88,0.06) 0%,transparent 70%)', pointerEvents: 'none' }} />
@@ -277,8 +302,6 @@ export function OnboardingScreen() {
 
       {/* Content */}
       <div style={{ position: 'relative', zIndex: 10, flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: scene?.type === 'team' ? 'flex-start' : 'center', padding: scene?.type === 'team' ? '32px 24px 48px' : '48px 24px', opacity: visible ? 1 : 0, transition: 'opacity 0.2s ease' }}>
-
-        {onboardingStep === 0 && <OnboardingChat userName={userName} onComplete={advance} />}
 
         {scene && (
           <div style={{ width: '100%', maxWidth: scene.type === 'team' ? 640 : 520 }}>
@@ -327,12 +350,6 @@ export function OnboardingScreen() {
               <button onClick={advance} style={{ padding: '10px 28px', borderRadius: 10, background: T.primary, border: 'none', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>{scene.cta}</button>
             </div>
           </div>
-        )}
-
-        {onboardingStep === 0 && (
-          <p style={{ textAlign: 'center', marginTop: 16 }}>
-            <button onClick={() => setScreen('assessment')} style={{ fontSize: 12, color: 'rgba(175,163,159,0.4)', background: 'none', border: 'none', cursor: 'pointer' }}>Skip prologue</button>
-          </p>
         )}
       </div>
     </div>
