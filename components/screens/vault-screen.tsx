@@ -1,7 +1,8 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { AppWindow } from "@/components/layout/app-window";
 import { SectionHeader, cardStyle, cardHoverIn, cardHoverOut } from "@/components/layout/discovery-ui";
+import { useAppStore } from "@/lib/store";
 
 /* ── Icons ──────────────────────────────────────────────────────────────────── */
 function FolderIcon({ color = '#fbbf24', size = 28 }: { color?: string; size?: number }) {
@@ -796,16 +797,97 @@ function DocViewer({ file, isNew, onClose }: {
 }
 
 /* ── Vault Screen ───────────────────────────────────────────────────────────── */
+const CHAR_COLORS: Record<string, string> = {
+  marcus: '#60a5fa', priya: '#a78bfa', tom: '#34d399', sarah: '#f59e0b', elena: '#f87171',
+};
+const CHAR_DISPLAY: Record<string, string> = {
+  marcus: 'Marcus Lee', priya: 'Priya Sharma', tom: 'Tom Hart', sarah: 'Sarah Chen', elena: 'Elena Rodriguez',
+};
+
+interface AiDoc {
+  id: string; name: string; docType: string; characterId: string; status: string;
+  content?: { sections?: Array<{ heading: string; content: string; table?: Array<Record<string,string>> | null }> };
+  createdAt: string;
+}
+
+function AiDocViewer({ doc, onClose }: { doc: AiDoc; onClose: () => void }) {
+  const sections = doc.content?.sections ?? [];
+  const charColor = CHAR_COLORS[doc.characterId] ?? '#6b7280';
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,8,14,0.97)', zIndex: 200, display: 'flex', flexDirection: 'column', borderRadius: 12, overflow: 'hidden' }}>
+      <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(255,255,255,0.02)' }}>
+        <div style={{ width: 28, height: 28, borderRadius: 7, background: `${charColor}22`, border: `1px solid ${charColor}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>
+          {doc.docType === 'pdf' ? '📄' : doc.docType === 'xlsx' ? '📊' : '📝'}
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 600, color: '#fff' }}>{doc.name}</div>
+          <div style={{ fontSize: 11, color: 'rgba(175,163,159,0.6)' }}>Shared by {CHAR_DISPLAY[doc.characterId] ?? doc.characterId}</div>
+        </div>
+        <div style={{ fontSize: 10, fontWeight: 600, color: charColor, background: `${charColor}18`, border: `1px solid ${charColor}30`, padding: '2px 8px', borderRadius: 5, textTransform: 'uppercase' as const }}>{doc.docType}</div>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 18, padding: '0 4px' }}>×</button>
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 32px' }}>
+        {sections.length === 0 && <p style={{ color: 'rgba(175,163,159,0.5)', fontSize: 13 }}>Document is being generated...</p>}
+        {sections.map((s, i) => (
+          <div key={i} style={{ marginBottom: 28 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 10, paddingBottom: 6, borderBottom: '1px solid rgba(255,255,255,0.07)' }}>{s.heading}</h3>
+            {s.table ? (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr>{Object.keys(s.table[0] ?? {}).map(col => (
+                      <th key={col} style={{ padding: '6px 10px', textAlign: 'left', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.6)', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>{col}</th>
+                    ))}</tr>
+                  </thead>
+                  <tbody>
+                    {s.table.map((row, ri) => (
+                      <tr key={ri} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                        {Object.values(row).map((val, vi) => (
+                          <td key={vi} style={{ padding: '7px 10px', color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>{val}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p style={{ fontSize: 13.5, color: 'rgba(175,163,159,0.85)', lineHeight: 1.75, margin: 0 }}>{s.content}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function VaultScreen() {
+  const { dbSessionId } = useAppStore();
   const [activeFolder, setActiveFolder] = useState('My Drive');
   const [view, setView]       = useState<'grid' | 'list'>('grid');
   const [search, setSearch]   = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [aiDocs, setAiDocs] = useState<AiDoc[]>([]);
+  const [selectedAiDoc, setSelectedAiDoc] = useState<AiDoc | null>(null);
 
   // Viewer state
   const [viewerFile, setViewerFile] = useState<FileItem | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [isNewFile,  setIsNewFile]  = useState(false);
+
+  // Fetch AI-generated docs for current session
+  useEffect(() => {
+    if (!dbSessionId) return;
+    const fetchDocs = () => {
+      fetch(`/api/documents?sessionId=${dbSessionId}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data?.documents) setAiDocs(data.documents); })
+        .catch(() => {});
+    };
+    fetchDocs();
+    // Poll every 15s in case new docs were generated during session
+    const interval = setInterval(fetchDocs, 15000);
+    return () => clearInterval(interval);
+  }, [dbSessionId]);
 
   const openFile = (file: FileItem) => {
     setViewerFile(file);
@@ -942,6 +1024,41 @@ export function VaultScreen() {
 
           {/* Files area */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '22px 28px 32px' }}>
+
+            {/* AI-generated docs from teammates */}
+            {aiDocs.length > 0 && (
+              <div style={{ marginBottom: 32 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.07em', textTransform: 'uppercase' }}>Shared by teammates</div>
+                  <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
+                  <div style={{ fontSize: 10.5, color: '#22c55e', fontWeight: 600 }}>{aiDocs.length} new</div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {aiDocs.map(doc => {
+                    const col = CHAR_COLORS[doc.characterId] ?? '#6b7280';
+                    return (
+                      <div key={doc.id} onClick={() => setSelectedAiDoc(doc)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, cursor: 'pointer', transition: 'all 0.15s' }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.025)'; }}>
+                        <div style={{ width: 32, height: 32, borderRadius: 8, background: `${col}18`, border: `1px solid ${col}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>
+                          {doc.docType === 'pdf' ? '📄' : doc.docType === 'xlsx' ? '📊' : '📝'}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.85)', marginBottom: 2 }}>{doc.name}</div>
+                          <div style={{ fontSize: 11, color: 'rgba(175,163,159,0.55)' }}>
+                            {CHAR_DISPLAY[doc.characterId] ?? doc.characterId} · {doc.docType.toUpperCase()}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: col, background: `${col}18`, border: `1px solid ${col}30`, padding: '2px 8px', borderRadius: 5, textTransform: 'uppercase' as const, flexShrink: 0 }}>{doc.docType}</div>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <SectionHeader title={activeFolder} />
 
             {view === 'grid' ? (
@@ -1066,6 +1183,11 @@ export function VaultScreen() {
               isNew={isNewFile}
               onClose={closeViewer}
             />
+          )}
+
+          {/* AI doc viewer */}
+          {selectedAiDoc && (
+            <AiDocViewer doc={selectedAiDoc} onClose={() => setSelectedAiDoc(null)} />
           )}
         </div>
       </div>
