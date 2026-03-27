@@ -1,6 +1,8 @@
 "use client";
 export const dynamic = 'force-dynamic';
+import { useEffect } from "react";
 import { useAppStore } from "@/lib/store";
+import { supabase } from "@/lib/supabase";
 import { LoginScreen } from "@/components/screens/login-screen";
 import { OnboardingScreen } from "@/components/screens/onboarding-screen";
 import { AssessmentScreen } from "@/components/screens/assessment-screen";
@@ -19,6 +21,53 @@ import { BoardMeetingScreen } from "@/components/screens/board-meeting-screen";
 import { ControlPanelPopover } from "@/components/screens/control-panel-screen";
 import { ChaosOverlay } from "@/components/screens/chaos-overlay";
 import { CompanyOverviewScreen } from "@/components/screens/company-overview-screen";
+
+/* ── Session guard — reconciles localStorage state with live Supabase session ── */
+function SessionGuard() {
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        // Read fresh store state each time — avoids stale closure
+        const store = useAppStore.getState();
+
+        if (event === 'INITIAL_SESSION') {
+          if (!session && store.user) {
+            // Persisted user but session expired — clear and redirect to login
+            store.setUser(null);
+            store.setScreen('login');
+          } else if (session && !store.user) {
+            // Valid Supabase session but localStorage was cleared — auto-restore
+            const { data: profile } = await supabase
+              .from('users')
+              .select('name, credits, avatar')
+              .eq('id', session.user.id)
+              .single();
+            store.setUser({
+              id: session.user.id,
+              name: profile?.name ?? session.user.email?.split('@')[0] ?? 'User',
+              email: session.user.email ?? '',
+              credits: profile?.credits ?? 10,
+              avatar: profile?.avatar ?? undefined,
+            });
+          }
+          // session && store.user → nothing to do, happy path
+          return;
+        }
+
+        // Any other event (TOKEN_REFRESHED failure, SIGNED_OUT, etc.):
+        // if session is gone and we still have a stored user → clear it
+        if (!session && store.user) {
+          store.setUser(null);
+          store.setScreen('login');
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return null;
+}
 
 /* ── Trust delta toast ─────────────────────────────────────────────────────── */
 function TrustToast() {
@@ -94,6 +143,7 @@ export default function Home() {
 
   return (
     <>
+      <SessionGuard />
       {screen === 'login'      && <LoginScreen />}
       {screen === 'register'   && <LoginScreen />}
       {screen === 'onboarding'        && <OnboardingScreen />}
