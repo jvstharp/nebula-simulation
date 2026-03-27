@@ -1,281 +1,223 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useAppStore } from "@/lib/store";
+import { ASSESSMENT_QUESTIONS } from "@/lib/assessment";
 
-/* ── Design tokens ─────────────────────────────────────────────────────────── */
 const T = {
-  bg:      '#0a0c0b',
-  primary: '#147b58',
-  text:    '#efefef',
-  muted:   'rgba(175,163,159,0.75)',
-  dim:     'rgba(175,163,159,0.4)',
+  bg:       '#121212',
+  surface:  '#212121',
+  text:     '#efefef',
+  muted:    '#afa39f',
+  border:   'rgba(255,255,255,0.04)',
+  border2:  'rgba(255,255,255,0.08)',
+  primary:  '#147b58',
 } as const;
 
-const OFFICE_IMG = 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=1600&q=80';
-
-/* ── Assessment questions & responses ────────────────────────────────────────── */
-const QUESTIONS = [
-  "Let's start. You've just joined as PM and discover three conflicting roadmaps. What's your first move?",
-  "Engineering tells you the top feature request will take 6 weeks minimum. How do you respond?",
-  "Sales may have already set expectations with a $2M enterprise client — but you weren't in the room. What do you do?",
-  "Your CEO wants 'one clear recommendation' but the trade-offs are real. How do you handle it?",
-  "A senior leader goes around your manager to give you direction. Your manager notices. Walk me through how you handle it.",
-];
-
-const ACKNOWLEDGMENTS = [
-  "Good instinct. Starting with alignment and gathering context is almost always the right move.",
-  "Exactly — digging into the 'why' behind constraints is what separates great PMs from good ones.",
-  "Smart approach. Verifying before assuming saves you from massive downstream problems.",
-  "That tension is real and there's rarely a clean answer. Navigating it well is a genuine skill.",
-];
-
-const FINAL_MSG =
-  "Impressive. I have a good read on where you stand. Your simulation is calibrated — time to step into Nexus Technologies.";
-
-function getAssessmentResponse(answeredTurn: number): string {
-  if (answeredTurn >= QUESTIONS.length - 1) return FINAL_MSG;
-  return `${ACKNOWLEDGMENTS[answeredTurn]}\n\n${QUESTIONS[answeredTurn + 1]}`;
+interface Evaluation {
+  score: number; feedback: string; needsFollowUp: boolean;
+  followUpQuestion: string | null; passed: boolean;
 }
 
-/* ── Internal types ─────────────────────────────────────────────────────────── */
-interface Msg { id: string; role: 'assistant' | 'user'; content: string; }
-let _uid = 0;
-const mkId = () => String(++_uid);
-
-/* ── Sub-components ─────────────────────────────────────────────────────────── */
-function TypingDots() {
+function ScoreDots({ score }: { score: number }) {
+  const col = score >= 4 ? '#22c55e' : score >= 3 ? '#f59e0b' : '#ef4444';
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-      <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg, #147b58, #0a2e1f)', border: '1px solid rgba(20,123,88,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#fff', flexShrink: 0, marginTop: 2 }}>N</div>
-      <div style={{ display: 'inline-flex', gap: 5, padding: '14px 18px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px 18px 18px 18px', backdropFilter: 'blur(8px)' }}>
-        {[0, 1, 2].map(i => (
-          <div key={i} style={{ width: 7, height: 7, borderRadius: '50%', background: T.muted, animation: `novaBounce 1.2s ease-in-out ${i * 200}ms infinite` }} />
-        ))}
-      </div>
+    <div style={{ display: 'flex', gap: 4 }}>
+      {[1,2,3,4,5].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: i <= score ? col : 'rgba(255,255,255,0.12)' }} />)}
     </div>
   );
 }
 
-function AIBubble({ content, showAvatar }: { content: string; showAvatar: boolean }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, animation: 'novaFadeUp 0.35s ease' }}>
-      {showAvatar ? (
-        <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg, #147b58, #0a2e1f)', border: '1px solid rgba(20,123,88,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#fff', flexShrink: 0, marginTop: 2 }}>N</div>
-      ) : (
-        <div style={{ width: 28, flexShrink: 0 }} />
-      )}
-      <div style={{ maxWidth: 480, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px 18px 18px 18px', padding: '12px 16px', fontSize: 14.5, color: T.text, lineHeight: 1.7, backdropFilter: 'blur(8px)', whiteSpace: 'pre-line' }}>
-        {content}
-      </div>
-    </div>
-  );
-}
-
-function UserBubble({ content }: { content: string }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'flex-end', animation: 'novaFadeUp 0.25s ease' }}>
-      <div style={{ maxWidth: 360, padding: '10px 16px', borderRadius: '18px 18px 4px 18px', background: 'rgba(20,123,88,0.18)', border: '1px solid rgba(20,123,88,0.3)', fontSize: 14, color: T.text, fontWeight: 500, lineHeight: 1.6 }}>
-        {content}
-      </div>
-    </div>
-  );
-}
-
-function MicIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={active ? '#ef4444' : T.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="9" y="2" width="6" height="12" rx="3" />
-      <path d="M5 10a7 7 0 0 0 14 0" />
-      <line x1="12" y1="19" x2="12" y2="22" />
-      <line x1="9" y1="22" x2="15" y2="22" />
-    </svg>
-  );
-}
-
-/* ── Main component ─────────────────────────────────────────────────────────── */
 export function AssessmentScreen() {
-  const { setScreen, setActiveBrowserTab, startSession } = useAppStore();
+  const { setScreen, startSession, setActiveBrowserTab, setAssessmentAnswer } = useAppStore();
+  const [current, setCurrent] = useState(0);
+  const [answer, setAnswer] = useState('');
+  const [followUpAnswer, setFollowUpAnswer] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
+  const [showFollowUp, setShowFollowUp] = useState(false);
+  const [scores, setScores] = useState<number[]>([]);
+  const [done, setDone] = useState(false);
 
-  const [messages,  setMessages]  = useState<Msg[]>([]);
-  const [input,     setInput]     = useState('');
-  const [isTyping,  setIsTyping]  = useState(false);
-  const [turn,      setTurn]      = useState(0);   // which question user is currently answering (0-indexed)
-  const [done,      setDone]      = useState(false);
-  const [listening, setListening] = useState(false);
+  const q = ASSESSMENT_QUESTIONS[current];
+  const isLast = current === ASSESSMENT_ASSESSMENT_QUESTIONS.length - 1;
 
-  const listRef        = useRef<HTMLDivElement>(null);
-  const inputRef       = useRef<HTMLInputElement>(null);
-  const recognitionRef = useRef<any>(null);
-
-  const scrollDown = () =>
-    setTimeout(() => listRef.current?.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 60);
-
-  const appendMsg = (role: 'assistant' | 'user', content: string) => {
-    setMessages(m => [...m, { id: mkId(), role, content }]);
-    scrollDown();
+  const callEvaluate = async (ans: string, followUpQ?: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/assessment/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questionId: q.id, question: q.question, answer: ans, followUpQuestion: followUpQ }),
+      });
+      const data = await res.json();
+      setEvaluation({
+        score: data.score ?? 3,
+        feedback: data.feedback ?? 'Noted.',
+        needsFollowUp: !followUpQ && data.needsFollowUp === true,
+        followUpQuestion: data.followUpQuestion ?? null,
+        passed: data.passed !== false,
+      });
+    } catch {
+      setEvaluation({ score: 3, feedback: 'Noted.', needsFollowUp: false, followUpQuestion: null, passed: true });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  function novaSpeak(content: string, delay = 1100): Promise<void> {
-    setIsTyping(true);
-    scrollDown();
-    return new Promise(resolve =>
-      setTimeout(() => {
-        setIsTyping(false);
-        appendMsg('assistant', content);
-        setTimeout(() => inputRef.current?.focus(), 50);
-        resolve();
-      }, delay)
+  const handleNext = () => {
+    const score = evaluation?.score ?? 3;
+    const newScores = [...scores, score];
+    setScores(newScores);
+    setAssessmentAnswer(current, score);
+    if (isLast) { setDone(true); return; }
+    setCurrent(c => c + 1);
+    setAnswer(''); setFollowUpAnswer(''); setEvaluation(null); setShowFollowUp(false);
+  };
+
+  const skip = () => { startSession(); setActiveBrowserTab('overview'); setScreen('browser'); };
+  const avg = scores.length ? Math.round(scores.reduce((a,b)=>a+b,0)/scores.length) : 0;
+
+  if (done) {
+    return (
+      <div style={{ background: T.bg, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 24px' }}>
+        <div style={{ position: 'relative', zIndex: 10, width: '100%', maxWidth: 480, textAlign: 'center' }}>
+          <div style={{ display: 'inline-flex', padding: '6px 14px', borderRadius: 99, background: T.surface, border: `1px solid ${T.border2}`, fontSize: 11, color: T.muted, letterSpacing: '0.06em', textTransform: 'uppercase' as const, marginBottom: 28 }}>Assessment Complete</div>
+          <div style={{ fontSize: 44, marginBottom: 8 }}>{avg>=4?'🎯':avg>=3?'✅':'📋'}</div>
+          <h2 style={{ fontSize: 24, fontWeight: 600, color: T.text, marginBottom: 12, letterSpacing: '-0.02em' }}>
+            {avg>=4?'Strong baseline.':avg>=3?'Solid foundation.':'Room to grow.'}
+          </h2>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 24 }}>
+            {scores.map((s,i) => {
+              const c = s>=4?'#22c55e':s>=3?'#f59e0b':'#ef4444';
+              return (
+                <div key={i} style={{ display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 4 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: `${c}18`, border: `1px solid ${c}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: c }}>{s}</div>
+                  <span style={{ fontSize: 9.5, color: T.muted }}>Q{i+1}</span>
+                </div>
+              );
+            })}
+          </div>
+          <p style={{ fontSize: 14, color: T.muted, lineHeight: 1.7, marginBottom: 36 }}>
+            {avg>=4?"Your answers show strong stakeholder instincts and strategic thinking. The team will be watching how you apply this under pressure.":avg>=3?"You have the right instincts in most areas. Watch for moments where the obvious move isn't the right move.":"You have the foundation. The simulation will challenge your assumptions — treat it as a learning environment."}
+          </p>
+          <button onClick={() => { startSession(); setActiveBrowserTab('overview'); setScreen('browser'); }}
+            style={{ padding: '12px 32px', borderRadius: 10, background: T.primary, border: 'none', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+            Start simulation →
+          </button>
+        </div>
+      </div>
     );
   }
 
-  /* On mount: Nova opens with Q1 */
-  useEffect(() => {
-    const t = setTimeout(() => novaSpeak(QUESTIONS[0]), 500);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  function launchSimulation() {
-    setScreen('office-intro');
-  }
-
-  async function handleSend() {
-    const text = input.trim();
-    if (!text || isTyping || done) return;
-    setInput('');
-    appendMsg('user', text);
-
-    const answeredTurn = turn;
-    const nextTurn     = turn + 1;
-    setTurn(nextTurn);
-
-    const response = getAssessmentResponse(answeredTurn);
-    await novaSpeak(response, 1200);
-
-    if (answeredTurn >= QUESTIONS.length - 1) {
-      setDone(true);
-    }
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') { e.preventDefault(); handleSend(); }
-  }
-
-  function toggleMic() {
-    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRec) {
-      alert('Speech recognition is not supported in this browser. Try Chrome.');
-      return;
-    }
-    if (listening) { recognitionRef.current?.stop(); return; }
-    const rec = new SpeechRec();
-    rec.continuous      = false;
-    rec.interimResults  = true;
-    rec.onresult = (e: any) => {
-      const transcript = Array.from(e.results as any[]).map((r: any) => r[0].transcript).join('');
-      setInput(transcript);
-    };
-    rec.onend  = () => setListening(false);
-    rec.onerror = () => setListening(false);
-    rec.start();
-    recognitionRef.current = rec;
-    setListening(true);
-  }
-
-  const canSend    = input.trim().length > 0 && !isTyping && !done;
-  const firstAIIdx = messages.findIndex(m => m.role === 'assistant');
-
   return (
-    <div style={{ position: 'fixed', inset: 0, background: T.bg, fontFamily: 'inherit', zIndex: 100, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ background: T.bg, minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', top: '25%', left: '30%', width: 500, height: 500, borderRadius: '50%', background: 'radial-gradient(circle,rgba(20,123,88,0.05) 0%,transparent 70%)', pointerEvents: 'none' }} />
 
-      {/* Background image */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={OFFICE_IMG} alt="" aria-hidden style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.07, filter: 'blur(6px) saturate(0.4)', pointerEvents: 'none', userSelect: 'none', zIndex: 0 }} />
+      <div style={{ position: 'relative', zIndex: 10, width: '100%', maxWidth: 560 }}>
 
-      {/* Header */}
-      <div style={{ position: 'relative', zIndex: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 28px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.09em', textTransform: 'uppercase', color: T.dim }}>Nebula AI Assessment</span>
-        <button
-          onClick={launchSimulation}
-          style={{ background: 'none', border: 'none', color: T.dim, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit', transition: 'color 0.15s' }}
-          onMouseEnter={e => (e.currentTarget.style.color = T.muted)}
-          onMouseLeave={e => (e.currentTarget.style.color = T.dim)}
-        >Skip →</button>
-      </div>
-
-      {/* Message list — full width so scrollbar sits at screen right edge */}
-      <div
-        ref={listRef}
-        style={{ position: 'relative', zIndex: 2, flex: 1, overflowY: 'auto', width: '100%' }}
-      >
-        {/* Inner wrapper keeps content centered at 700px */}
-        <div style={{ maxWidth: 700, width: '100%', margin: '0 auto', padding: '28px 24px 16px', display: 'flex', flexDirection: 'column', gap: 16, boxSizing: 'border-box' }}>
-          {messages.map((m, i) =>
-            m.role === 'assistant'
-              ? <AIBubble   key={m.id} content={m.content} showAvatar={i === firstAIIdx} />
-              : <UserBubble key={m.id} content={m.content} />
-          )}
-
-          {isTyping && <TypingDots />}
-
-          {done && (
-            <div style={{ paddingLeft: 38, animation: 'novaFadeUp 0.4s ease' }}>
-              <button
-                onClick={launchSimulation}
-                style={{ padding: '12px 24px', borderRadius: 10, background: T.primary, border: 'none', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'opacity 0.15s' }}
-                onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
-                onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
-              >
-                Enter the simulation →
-              </button>
-            </div>
-          )}
-
-          <div style={{ height: 4 }} />
-        </div>
-      </div>
-
-      {/* Input bar */}
-      {!done && (
-        <div style={{ position: 'relative', zIndex: 2, flexShrink: 0, padding: '12px 24px 28px', maxWidth: 700, width: '100%', alignSelf: 'center', boxSizing: 'border-box' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9999, padding: '10px 10px 10px 20px', transition: 'border-color 0.15s' }}>
-            <input
-              ref={inputRef}
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Your responses here"
-              disabled={isTyping || done}
-              style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: T.text, fontSize: 14, fontFamily: 'inherit' }}
-            />
-            {/* Mic button */}
-            <button
-              onClick={toggleMic}
-              title={listening ? 'Stop listening' : 'Speak your answer'}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, animation: listening ? 'micPulse 1.2s ease-in-out infinite' : 'none', transition: 'opacity 0.15s' }}
-            >
-              <MicIcon active={listening} />
-            </button>
-            {/* Send button */}
-            <button
-              onClick={handleSend}
-              disabled={!canSend}
-              style={{ width: 36, height: 36, borderRadius: '50%', background: canSend ? T.primary : 'rgba(255,255,255,0.1)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: canSend ? 'pointer' : 'default', transition: 'background 0.2s', flexShrink: 0 }}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" />
-              </svg>
-            </button>
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div style={{ display: 'inline-flex', padding: '6px 14px', borderRadius: 99, background: T.surface, border: `1px solid ${T.border2}`, fontSize: 11, color: T.muted, letterSpacing: '0.06em', textTransform: 'uppercase' as const, marginBottom: 20 }}>Skill Baseline Assessment</div>
+          <h2 style={{ fontSize: 20, fontWeight: 600, color: T.text, marginBottom: 18, letterSpacing: '-0.01em' }}>Question {current+1} of {ASSESSMENT_QUESTIONS.length}</h2>
+          <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 99, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${(current/ASSESSMENT_QUESTIONS.length)*100}%`, background: T.primary, borderRadius: 99, transition: 'width 0.3s ease' }} />
           </div>
         </div>
-      )}
 
-      <style>{`
-        @keyframes novaBounce { 0%,80%,100%{transform:translateY(0);opacity:0.45} 40%{transform:translateY(-6px);opacity:1} }
-        @keyframes novaFadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes micPulse   { 0%,100%{opacity:1} 50%{opacity:0.4} }
-        input::placeholder { color: rgba(175,163,159,0.35); }
-      `}</style>
+        {/* Question */}
+        <p style={{ fontSize: 17, fontWeight: 500, color: T.text, lineHeight: 1.65, marginBottom: 20 }}>{q.question}</p>
+
+        {/* Idle: show text area */}
+        {!loading && !evaluation && (
+          <>
+            <textarea value={answer} onChange={e => setAnswer(e.target.value)}
+              placeholder="Be specific — what would you do and why? (at least 20 characters)"
+              rows={5}
+              style={{ width: '100%', background: T.surface, border: `1px solid ${T.border2}`, borderRadius: 12, padding: '14px 16px', fontSize: 14, color: T.text, resize: 'none' as const, fontFamily: 'inherit', outline: 'none', lineHeight: 1.6, boxSizing: 'border-box' as const, marginBottom: 20 }}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <button onClick={skip} style={{ fontSize: 12, color: 'rgba(175,163,159,0.35)', background: 'none', border: 'none', cursor: 'pointer' }}>Skip assessment</button>
+              <button onClick={() => callEvaluate(answer)} disabled={answer.trim().length < 20}
+                style={{ padding: '10px 28px', borderRadius: 10, background: T.primary, border: 'none', color: '#fff', fontSize: 14, fontWeight: 600, cursor: answer.trim().length < 20 ? 'not-allowed' : 'pointer', opacity: answer.trim().length < 20 ? 0.4 : 1, fontFamily: 'inherit' }}>
+                Submit →
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* Loading */}
+        {loading && (
+          <div style={{ textAlign: 'center', padding: '36px 0' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 14 }}>
+              {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: T.primary, animation: `epulse 1s ${i*0.15}s ease-in-out infinite` }} />)}
+            </div>
+            <p style={{ fontSize: 13, color: T.muted }}>Evaluating your answer...</p>
+            <style>{`@keyframes epulse{0%,80%,100%{opacity:.3;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}`}</style>
+          </div>
+        )}
+
+        {/* Evaluation result */}
+        {!loading && evaluation && !showFollowUp && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ background: evaluation.score>=4?'rgba(34,197,94,0.06)':evaluation.score>=3?'rgba(245,158,11,0.06)':'rgba(239,68,68,0.06)', border: `1px solid ${evaluation.score>=4?'rgba(34,197,94,0.2)':evaluation.score>=3?'rgba(245,158,11,0.2)':'rgba(239,68,68,0.2)'}`, borderRadius: 12, padding: '14px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <span style={{ fontSize: 11.5, fontWeight: 600, color: evaluation.score>=4?'#22c55e':evaluation.score>=3?'#f59e0b':'#ef4444', letterSpacing: '0.04em', textTransform: 'uppercase' as const }}>
+                  {evaluation.score>=4?'Strong answer':evaluation.score>=3?'Adequate':'Needs more depth'}
+                </span>
+                <ScoreDots score={evaluation.score} />
+              </div>
+              <p style={{ fontSize: 13.5, color: T.muted, lineHeight: 1.65, margin: 0 }}>{evaluation.feedback}</p>
+            </div>
+
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${T.border}`, borderRadius: 10, padding: '10px 14px' }}>
+              <div style={{ fontSize: 10, fontWeight: 600, color: 'rgba(175,163,159,0.4)', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 5 }}>Your answer</div>
+              <p style={{ fontSize: 13, color: T.muted, lineHeight: 1.6, margin: 0, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{answer}</p>
+            </div>
+
+            {evaluation.needsFollowUp && evaluation.followUpQuestion ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ background: T.surface, border: `1px solid ${T.border2}`, borderRadius: 10, padding: '12px 14px' }}>
+                  <div style={{ fontSize: 11, color: T.primary, fontWeight: 600, marginBottom: 6 }}>Follow-up question</div>
+                  <p style={{ fontSize: 14, color: T.text, lineHeight: 1.6, margin: 0 }}>{evaluation.followUpQuestion}</p>
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button onClick={() => setShowFollowUp(true)} style={{ flex: 1, padding: '10px', borderRadius: 10, background: 'rgba(20,123,88,0.12)', border: `1px solid ${T.primary}40`, color: T.primary, fontSize: 13.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Answer follow-up</button>
+                  <button onClick={handleNext} style={{ padding: '10px 16px', borderRadius: 10, background: 'transparent', border: `1px solid ${T.border2}`, color: T.muted, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>{isLast ? 'Skip to results' : 'Skip'}</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button onClick={handleNext} style={{ padding: '11px 28px', borderRadius: 10, background: T.primary, border: 'none', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {isLast ? 'See results →' : 'Next question →'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Follow-up input */}
+        {showFollowUp && evaluation?.followUpQuestion && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ background: T.surface, border: `1px solid ${T.border2}`, borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ fontSize: 11, color: T.primary, fontWeight: 600, marginBottom: 6 }}>Follow-up</div>
+              <p style={{ fontSize: 14, color: T.text, lineHeight: 1.6, margin: 0 }}>{evaluation.followUpQuestion}</p>
+            </div>
+            <textarea value={followUpAnswer} onChange={e => setFollowUpAnswer(e.target.value)}
+              placeholder="Be more specific this time..."
+              rows={4}
+              style={{ width: '100%', background: T.surface, border: `1px solid ${T.border2}`, borderRadius: 12, padding: '14px 16px', fontSize: 14, color: T.text, resize: 'none' as const, fontFamily: 'inherit', outline: 'none', lineHeight: 1.6, boxSizing: 'border-box' as const }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button onClick={handleNext} style={{ fontSize: 13, color: T.muted, background: 'none', border: 'none', cursor: 'pointer' }}>Skip</button>
+              <button onClick={() => { const ans = followUpAnswer; const fq = evaluation.followUpQuestion ?? undefined; setShowFollowUp(false); setEvaluation(null); setFollowUpAnswer(''); callEvaluate(ans, fq); }}
+                disabled={followUpAnswer.trim().length < 10}
+                style={{ padding: '10px 24px', borderRadius: 10, background: T.primary, border: 'none', color: '#fff', fontSize: 14, fontWeight: 600, cursor: followUpAnswer.trim().length < 10 ? 'not-allowed' : 'pointer', opacity: followUpAnswer.trim().length < 10 ? 0.4 : 1, fontFamily: 'inherit' }}>
+                Submit →
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -100,7 +100,17 @@ RESPONSE RULES:
   - Medium (45–64%): cautious, conditional, flag your constraints
   - Low (<45%): guarded, friction, push back if your character would
 - Reference real details when relevant: card names, deal names (Acme, Meridian), numbers (94% capacity, $3M clawback, October 1st), people (David Park, James Whitfield).
-- Chaos active: if engineering capacity is in crisis, factor that into your response.`;
+- Chaos active: if engineering capacity is in crisis, factor that into your response.
+
+TRUST DELTA — after writing your reply, assign a delta (-0.15 to +0.15) reflecting how the PM's message affected your trust in them:
++0.10 to +0.15: The PM asked exactly the right question or showed sharp, specific judgment
++0.05 to +0.09: Relevant, thoughtful, professional message
++0.00 to +0.04: Vague, generic, or safe — doesn't move things forward
+-0.05 to -0.01: Misses the point, asks the wrong question, shows poor prioritisation
+-0.15 to -0.06: Inappropriate tone, political misread, or shows fundamental misunderstanding
+
+OUTPUT FORMAT — return ONLY a single line of valid JSON (no markdown):
+{"reply":"your 1-3 sentence in-character response","delta":0.05}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -118,15 +128,31 @@ Respond as ${body.characterState.name} to this specific trigger. Stay in charact
 
     const message = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 120,
+      max_tokens: 200,
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }],
     });
 
-    const reply =
-      message.content[0].type === 'text' ? message.content[0].text.trim() : null;
+    const raw = message.content[0].type === 'text' ? message.content[0].text.trim() : null;
 
-    return NextResponse.json({ reply });
+    // Parse JSON response; fall back to treating raw text as reply with null delta (signals parse failure)
+    let reply: string | null = null;
+    let trustDelta: number | null = null;
+    if (raw) {
+      try {
+        const cleaned = raw.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
+        const parsed = JSON.parse(cleaned);
+        reply = parsed.reply ?? null;
+        trustDelta = typeof parsed.delta === 'number'
+          ? Math.max(-0.15, Math.min(0.15, parsed.delta))
+          : null;
+      } catch {
+        reply = raw;
+        trustDelta = null;
+      }
+    }
+
+    return NextResponse.json({ reply, trustDelta });
   } catch (err) {
     const error = err instanceof Error ? err.message : 'Unknown error';
     return NextResponse.json({ reply: null, error }, { status: 500 });

@@ -22,6 +22,12 @@ const COL_NAMES: Record<string, string> = {
   done: 'Done',
 };
 
+export interface CharacterReplyResult {
+  reply: string | null;
+  // null means the API call failed or the response could not be parsed — use fallback
+  trustDelta: number | null;
+}
+
 export async function generateCharacterReply(
   characterId: string,
   triggerType: TriggerType,
@@ -32,7 +38,7 @@ export async function generateCharacterReply(
     session: SessionState;
     kanbanColumns: KanbanColumn[];
   }
-): Promise<string | null> {
+): Promise<CharacterReplyResult> {
   const assigneeInitial = ASSIGNEE_INITIAL[characterId];
 
   const myCards = state.kanbanColumns.flatMap(col =>
@@ -87,10 +93,13 @@ export async function generateCharacterReply(
       }),
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) return { reply: null, trustDelta: null };
     const data = await res.json();
-    return data.reply ?? null;
+    return {
+      reply: data.reply ?? null,
+      trustDelta: typeof data.trustDelta === 'number' ? data.trustDelta : null,
+    };
   } catch {
-    return null;
+    return { reply: null, trustDelta: null };
   }
 }

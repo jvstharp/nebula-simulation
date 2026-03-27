@@ -1,42 +1,106 @@
 import { create } from 'zustand';
-import { Character, Message, SessionState, Screen, AppTab, BrowserTab, ChaosEvent, OKR, PortfolioCaseStudy, AccessibilityPrefs, SimulationStage, SimPreferences, CharacterId, DifficultyLevel, DecisionNode, DebriefItem, DynamicAnalytics, KanbanColumn, KanbanCard } from './types';
-import { CHARACTERS, INITIAL_SESSION, INITIAL_MESSAGES, INITIAL_OKRS, REPLY_MAP, CHARACTER_SECRETS, CASCADE_EVENTS, CHAOS_EVENT_POOL, DIFFICULTY_CONFIG, MOCK_ANALYTICS, INITIAL_KANBAN_COLUMNS } from './data';
+import { Character, CharacterId, Message, SessionState, Screen, AppTab, BrowserTab, ChaosEvent, OKR, PortfolioCaseStudy, AccessibilityPrefs, SimulationStage, KanbanCard, KanbanColumn } from './types';
+import { CHARACTERS, INITIAL_SESSION, INITIAL_MESSAGES, INITIAL_OKRS, REPLY_MAP, INITIAL_KANBAN_COLUMNS, CARD_REACTION_MAP } from './data';
 import { getSoundscape } from './soundscape';
-import { createDbSession, saveMessage, saveSessionEvent, completeDbSession } from './db';
+import { generateCharacterReply, TriggerType } from './ai';
+
+// ── Constraint detection — client-side keyword scan on character replies ──────
+const CONSTRAINT_PATTERNS: Record<string, Array<{ keywords: string[]; constraint: string }>> = {
+  marcus: [{ keywords: ['workos', 'third-party', '2 weeks', 'two weeks', 'vendor'], constraint: 'workos' }],
+  elena: [{ keywords: ['clawback', 'october 1', 'covenant', 'milestone clause'], constraint: 'clawback' }],
+  tom: [
+    { keywords: ['best efforts', 'best-efforts', 'not a hard'], constraint: 'best_efforts' },
+    { keywords: ['meridian'], constraint: 'meridian' },
+  ],
+  priya: [{ keywords: ['conversion', 'trial-to-paid', 'exit survey', 'funnel drop'], constraint: 'priya_research' }],
+  sarah: [{ keywords: ['whitfield', 'james whitfield', 'sequoia', 'series c lead'], constraint: 'sarah_context' }],
+};
+
+function detectConstraint(characterId: string, replyText: string): string | null {
+  const patterns = CONSTRAINT_PATTERNS[characterId];
+  if (!patterns) return null;
+  const lower = replyText.toLowerCase();
+  for (const { keywords, constraint } of patterns) {
+    if (keywords.some(k => lower.includes(k))) return constraint;
+  }
+  return null;
+}
+
+const CONSTRAINT_LABELS: Record<string, string> = {
+  workos: 'WorkOS shortcut identified',
+  clawback: '$3M clawback clause revealed',
+  best_efforts: 'Acme commitment clarified',
+  meridian: 'Meridian deal surfaced',
+  priya_research: 'Conversion research unlocked',
+  sarah_context: 'Investor SSO context revealed',
+};
+
+// ── Document share detection ──────────────────────────────────────────────────
+const DOC_SHARE_RE = /(?:shared|sent you|sending over|your drive|check your|dropped|put together|i've added|ping(?:ed)? you|forwarding)/i;
+const DOC_TYPE_RE = /(?:doc(?:ument)?|brief|analysis|report|research|data|breakdown|deck|file|notes|spec|summary|map|email chain)/i;
+
+function maybeGenerateDoc(characterId: string, body: string, sessionId: string) {
+  if (!DOC_SHARE_RE.test(body) || !DOC_TYPE_RE.test(body)) return;
+  fetch('/api/documents/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionId, characterId, triggerMessage: body }),
+  }).catch(() => {});
+}
+
+// ── Backend helpers ──────────────────────────────────────────────────────────
+
+async function apiPost(path: string, body: unknown): Promise<unknown> {
+  try {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+async function apiPatch(path: string, body: unknown): Promise<unknown> {
+  try {
+    const res = await fetch(path, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+// Debounced state sync — saves Zustand snapshot to DB at most every 10s
+let _syncTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleStateSync(dbSessionId: string, getState: () => AppStore) {
+  if (_syncTimer) clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(() => {
+    const s = getState();
+    apiPatch(`/api/sessions/${dbSessionId}`, {
+      elapsedSeconds: s.session?.elapsedSeconds,
+      stage: s.session?.simulationStage,
+      stateJson: {
+        characters: s.characters,
+        kanbanColumns: s.kanbanColumns,
+        okrs: s.session?.okrs,
+        chaosMode: s.session?.chaosMode,
+      },
+    });
+  }, 10000);
+}
 
 export interface MinimizedWindow {
   screen: Screen;
   label: string;
   accentColor: string;
-}
-
-function computeDifficulty(simPrefs: SimPreferences | null): DifficultyLevel {
-  const exp = (simPrefs?.experienceLevel ?? '').toLowerCase();
-  if (
-    exp.includes('0') || exp.includes('1 year') || exp.includes('student') ||
-    exp.includes('junior') || exp.includes('intern') || exp.includes('entry')
-  ) return 'guided';
-  if (
-    exp.includes('5') || exp.includes('6') || exp.includes('7') || exp.includes('8') ||
-    exp.includes('9') || exp.includes('10') || exp.includes('senior') ||
-    exp.includes('director') || exp.includes('vp') || exp.includes('head of')
-  ) return 'pressure';
-  return 'standard';
-}
-
-function computeMetricsDrift(characters: Character[], chaosCount: number): DynamicAnalytics {
-  const priya = characters.find(c => c.id === 'priya');
-  const marcus = characters.find(c => c.id === 'marcus');
-  const pTrust = priya?.trust ?? 0.68;
-  const mTrust = marcus?.trust ?? 0.51;
-
-  return {
-    nps: Math.round(42 + (pTrust - 0.68) * 45),
-    trialConversion: Math.round(23 + (pTrust - 0.68) * 18),
-    velocity: Math.round(84 + (mTrust - 0.51) * 35),
-    churn: Math.max(1, parseFloat((4.2 + chaosCount * 0.5 - (mTrust - 0.51) * 1.5).toFixed(1))),
-    dau: Math.round(12400 + (pTrust - 0.68) * 800),
-  };
 }
 
 interface AppStore {
@@ -52,11 +116,12 @@ interface AppStore {
   restoreWindow: (screen: Screen) => void;
 
   // Auth
-  user: { id: string; name: string; email: string; credits: number; avatar: string } | null;
+  user: { name: string; email: string; credits: number } | null;
   setUser: (u: AppStore['user']) => void;
 
-  // DB session tracking
+  // Backend session ID (mirrors DB record)
   dbSessionId: string | null;
+  setDbSessionId: (id: string | null) => void;
 
   // Simulation
   session: SessionState | null;
@@ -65,10 +130,6 @@ interface AppStore {
   activeCharacter: Character | null;
   chatInput: string;
   chaosOverlay: ChaosEvent | null;
-
-  // Voice mode
-  voiceMode: boolean;
-  setVoiceMode: (v: boolean) => void;
 
   // Control Panel popover
   controlPanelOpen: boolean;
@@ -90,11 +151,10 @@ interface AppStore {
   updateOKR: (id: string, progress: number) => void;
   pauseSession: () => void;
   resumeSession: () => void;
-  receiveReply: (characterId: string, body: string, trustDelta: number, userMessage?: string) => void;
+  receiveReply: (characterId: string, body: string, trustDelta: number) => void;
   completeSession: () => void;
   advanceToExecution: (planScore: number, planFeedback: string) => void;
   advanceToReporting: () => void;
-  generateDebrief: () => void;
 
   // Kanban board (shared state so simulation can update it)
   kanbanColumns: KanbanColumn[];
@@ -109,9 +169,10 @@ interface AppStore {
   setOnboardingStep: (n: number) => void;
   setAssessmentAnswer: (i: number, v: number) => void;
 
-  // Sim preferences (set during chat onboarding)
-  simPreferences: SimPreferences | null;
-  setSimPreferences: (prefs: SimPreferences) => void;
+  // Constraint discovery
+  revealedConstraints: string[];
+  constraintToasts: Array<{ id: string; constraint: string; label: string; characterName: string }>;
+  dismissConstraintToast: (id: string) => void;
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -137,6 +198,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setUser: (user) => set({ user }),
 
   dbSessionId: null,
+  setDbSessionId: (dbSessionId) => set({ dbSessionId }),
 
   session: null,
   characters: CHARACTERS,
@@ -144,40 +206,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
   activeCharacter: null,
   chatInput: '',
   chaosOverlay: null,
-
-  voiceMode: false,
-  setVoiceMode: (voiceMode) => set({ voiceMode }),
-
-  kanbanColumns: INITIAL_KANBAN_COLUMNS,
-  cardAdvanceCooldowns: {},
-  moveKanbanCard: (cardId, toColId) => set(s => {
-    const cols = s.kanbanColumns.map(col => ({
-      ...col,
-      cards: col.cards.filter(c => c.id !== cardId),
-    }));
-    const sourceCard = s.kanbanColumns.flatMap(c => c.cards).find(c => c.id === cardId);
-    if (!sourceCard) return {};
-    return {
-      kanbanColumns: cols.map(col =>
-        col.id === toColId ? { ...col, cards: [...col.cards, sourceCard] } : col
-      ),
-    };
-  }),
-  injectMessage: (characterId, body, channel) => {
-    const msg: Message = {
-      id: `injected-${Date.now()}`,
-      from: characterId,
-      to: 'user',
-      channel,
-      body,
-      timestamp: new Date(),
-      read: false,
-    };
-    set(s => ({ messages: [...s.messages, msg] }));
-  },
-  onUserMoveCard: (card, fromColId, toColId) => {
-    get().moveKanbanCard(card.id, toColId);
-  },
 
   controlPanelOpen: false,
   setControlPanelOpen: (open) => set({ controlPanelOpen: open }),
@@ -188,42 +216,24 @@ export const useAppStore = create<AppStore>((set, get) => ({
   })),
 
   startSession: () => {
-    const difficulty = computeDifficulty(get().simPreferences);
     set({
-      session: {
-        ...INITIAL_SESSION,
-        startedAt: new Date(),
-        chaosTier: null,
-        chaosResolving: false,
-        portfolio: null,
-        difficulty,
-        unlockedSecrets: [],
-        firedCascades: [],
-        firedChaosIds: [],
-        lastContactedAt: {},
-        decisionHistory: [],
-        dynamicAnalytics: { nps: 42, trialConversion: 23, velocity: 84, churn: 4.2, dau: 12400 },
-        debrief: null,
-      },
+      session: { ...INITIAL_SESSION, startedAt: new Date(), chaosTier: null, chaosResolving: false, portfolio: null },
       messages: INITIAL_MESSAGES,
       characters: CHARACTERS,
     });
     getSoundscape().init().catch(() => {});
 
-    // Persist to DB (fire and forget)
-    const { user } = get();
-    const newSession = get().session;
-    if (user?.id && newSession) {
-      createDbSession(user.id, newSession)
-        .then(id => { if (id) set({ dbSessionId: id }); })
-        .catch(() => {});
-    }
+    // Create DB session record (fire and forget — sim runs offline if this fails)
+    apiPost('/api/sessions', { scenarioId: 'roadmap-reckoning' }).then((data: any) => {
+      if (data?.session?.id) {
+        set({ dbSessionId: data.session.id });
+      }
+    });
   },
 
   sendMessage: (body, channel, subject) => {
-    const { activeCharacter, messages, session, characters } = get();
+    const { activeCharacter, messages } = get();
     if (!activeCharacter) return;
-
     const msg: Message = {
       id: Math.random().toString(36).slice(2),
       from: 'user',
@@ -234,57 +244,39 @@ export const useAppStore = create<AppStore>((set, get) => ({
       timestamp: new Date(),
       read: true,
     };
+    set({ messages: [...messages, msg] });
 
-    // Track last contacted time
-    const updatedSession = session ? {
-      ...session,
-      lastContactedAt: { ...session.lastContactedAt, [activeCharacter.id]: session.elapsedSeconds },
-    } : session;
-
-    set({ messages: [...messages, msg], session: updatedSession });
-
-    // Persist user message to DB (fire and forget)
-    const { user, dbSessionId } = get();
-    if (user?.id && dbSessionId) {
-      saveMessage(dbSessionId, user.id, msg).catch(() => {});
+    // Persist message + log event to DB (fire and forget)
+    const { dbSessionId, session } = get();
+    if (dbSessionId) {
+      apiPost(`/api/sessions/${dbSessionId}/messages`, {
+        from: 'user', to: activeCharacter.id, channel, body,
+      });
+      apiPost(`/api/sessions/${dbSessionId}/events`, {
+        type: 'message_sent',
+        payload: {
+          characterId: activeCharacter.id,
+          channel,
+          elapsedSeconds: session?.elapsedSeconds ?? 0,
+        },
+      });
+      scheduleStateSync(dbSessionId, get);
     }
 
-    // Capture for delay reference
-    const charSnapshot = { ...activeCharacter };
-    const delay = 1500 + Math.random() * 1500;
-
-    // Try AI-powered reply, fall back to REPLY_MAP
-    const recentMsgs = [...messages, msg]
-      .filter(m => (m.from === charSnapshot.id || m.to === charSnapshot.id) && m.channel === channel)
-      .slice(-6);
-
-    const trustDelta = (Math.random() - 0.3) * 0.1 +
-      (session ? DIFFICULTY_CONFIG[session.difficulty].trustDeltaBoost : 0);
-
-    fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        characterName: charSnapshot.name,
-        characterTitle: charSnapshot.title,
-        personality: charSnapshot.personality,
-        visibleAgenda: charSnapshot.visibleAgenda,
-        trust: charSnapshot.trust,
-        conversationHistory: recentMsgs,
-        userMessage: body,
-      }),
-    })
-      .then(r => r.json())
-      .then(({ reply }) => {
-        setTimeout(() => {
-          get().receiveReply(charSnapshot.id, reply || getFallbackReply(charSnapshot.id), trustDelta, body);
-        }, delay);
-      })
-      .catch(() => {
-        setTimeout(() => {
-          get().receiveReply(charSnapshot.id, getFallbackReply(charSnapshot.id), trustDelta, body);
-        }, delay);
-      });
+    // Generate live reply via Claude; fall back to REPLY_MAP on failure
+    const { kanbanColumns } = get();
+    generateCharacterReply(
+      activeCharacter.id,
+      'message_reply',
+      body,
+      { character: activeCharacter, recentMessages: messages, session: session!, kanbanColumns }
+    ).then(result => {
+      const fallbackPool = REPLY_MAP[activeCharacter.id] || [];
+      const text = result.reply ?? (fallbackPool[Math.floor(Math.random() * fallbackPool.length)] || "I'll get back to you on this.");
+      // Use AI-derived trust delta; fall back to small random value if API failed to return one
+      const trustDelta = result.trustDelta !== null ? result.trustDelta : (Math.random() - 0.35) * 0.08;
+      get().receiveReply(activeCharacter.id, text, trustDelta);
+    });
   },
 
   setActiveCharacter: (activeCharacter) => set({ activeCharacter }),
@@ -293,11 +285,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
   acknowledgeChaos: () => {
     const session = get().session;
     if (!session) return;
+    // Begin 45s visual wind-down
     set({
       chaosOverlay: null,
       session: { ...session, chaosMode: 'normal', chaosResolving: true },
     });
     getSoundscape().beginWindDown();
+    // Clear resolving state after 45s
     setTimeout(() => {
       set(s => ({
         session: s.session ? { ...s.session, chaosTier: null, chaosResolving: false } : null,
@@ -309,53 +303,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     messages: s.messages.map(m => m.id === messageId ? { ...m, read: true } : m),
   })),
 
-  tickSession: () => {
-    const { session, characters } = get();
-    if (!session || session.status !== 'active') return;
-
-    const newElapsed = session.elapsedSeconds + 1;
-
-    // Check cascade triggers every 5 seconds
-    if (newElapsed % 5 === 0) {
-      const config = DIFFICULTY_CONFIG[session.difficulty];
-      const sessionForCheck = { ...session, elapsedSeconds: newElapsed };
-
-      for (const cascade of CASCADE_EVENTS) {
-        // Apply difficulty multiplier to cascade thresholds
-        const adjustedSession = {
-          ...sessionForCheck,
-          // Slow cascades for guided, speed up for pressure
-          elapsedSeconds: Math.round(newElapsed / config.cascadeDelayMultiplier),
-        };
-        if (cascade.trigger(adjustedSession)) {
-          const cascadeMsg: Message = {
-            id: `cascade-${cascade.id}-${Date.now()}`,
-            from: cascade.characterId,
-            to: 'user',
-            channel: cascade.channel,
-            subject: cascade.subject,
-            body: cascade.message,
-            timestamp: new Date(),
-            read: false,
-          };
-          set(s => ({
-            messages: [...s.messages, cascadeMsg],
-            session: s.session ? {
-              ...s.session,
-              elapsedSeconds: newElapsed,
-              firedCascades: [...s.session.firedCascades, cascade.id],
-            } : s.session,
-          }));
-          getSoundscape().playNotificationPing?.();
-          return;
-        }
-      }
-    }
-
-    set(s => ({
-      session: s.session ? { ...s.session, elapsedSeconds: newElapsed } : s.session,
-    }));
-  },
+  tickSession: () => set(s => ({
+    session: s.session && s.session.status === 'active'
+      ? { ...s.session, elapsedSeconds: s.session.elapsedSeconds + 1 }
+      : s.session,
+  })),
 
   trustToast: null,
   setTrustToast: (trustToast) => set({ trustToast }),
@@ -385,197 +337,166 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ session: { ...session, status: 'active' } });
   },
 
-  receiveReply: (characterId, body, trustDelta, userMessage?) => {
-    const { messages, characters, session, voiceMode } = get();
+  receiveReply: (characterId, body, trustDelta) => {
+    const { messages, characters, session, dbSessionId } = get();
     const char = characters.find(c => c.id === characterId);
     if (!char) return;
-
     const msg: Message = {
       id: Math.random().toString(36).slice(2),
-      from: characterId as CharacterId,
+      from: characterId as any,
       to: 'user',
       channel: 'chat',
       body,
       timestamp: new Date(),
       read: false,
     };
-
     const newTrust = Math.max(0.1, Math.min(0.95, char.trust + trustDelta));
-
-    // Build decision node if we have the original user message
-    const newDecisionNode: DecisionNode | null = userMessage ? {
-      id: `d-${Date.now()}`,
-      timestampSeconds: session?.elapsedSeconds ?? 0,
-      characterId: characterId as CharacterId,
-      userMessage,
-      characterReply: body,
-      trustBefore: char.trust,
-      trustAfter: newTrust,
-    } : null;
-
-    // Check for newly unlocked secrets
-    const secrets = CHARACTER_SECRETS[characterId as CharacterId] || [];
-    const newlyUnlocked = secrets.filter(s =>
-      session && !session.unlockedSecrets.includes(s.secretId) && newTrust >= s.threshold
-    );
-
-    // Compute metrics drift
-    const updatedChars = characters.map(c => c.id === characterId ? { ...c, trust: newTrust } : c);
-    const newAnalytics = session
-      ? computeMetricsDrift(updatedChars, session.chaosLog.length)
-      : null;
-
     set({
       messages: [...messages, msg],
-      characters: updatedChars,
+      characters: characters.map(c => c.id === characterId ? { ...c, trust: newTrust } : c),
       trustToast: { characterId, name: char.name, delta: trustDelta, newTrust },
-      session: session ? {
-        ...session,
-        decisionHistory: newDecisionNode ? [...session.decisionHistory, newDecisionNode] : session.decisionHistory,
-        dynamicAnalytics: newAnalytics ?? session.dynamicAnalytics,
-      } : session,
     });
 
-    // Persist character reply to DB (fire and forget)
-    const { user: u, dbSessionId: dbSid } = get();
-    if (u?.id && dbSid) {
-      saveMessage(dbSid, u.id, msg).catch(() => {});
+    // Persist incoming message + trust event to DB
+    if (dbSessionId) {
+      apiPost(`/api/sessions/${dbSessionId}/messages`, {
+        from: characterId, to: 'user', channel: 'chat', body,
+      });
+      apiPost(`/api/sessions/${dbSessionId}/events`, {
+        type: 'trust_changed',
+        payload: { characterId, delta: trustDelta, newTrust, elapsedSeconds: session?.elapsedSeconds ?? 0 },
+      });
+      scheduleStateSync(dbSessionId, get);
     }
 
-    // Auto-clear trust toast
+    // Auto-clear trust toast after 3.5s
     setTimeout(() => {
       set(s => s.trustToast?.characterId === characterId ? { trustToast: null } : {});
     }, 3500);
 
-    // TTS for voice mode
-    if (voiceMode && typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      const utterance = new SpeechSynthesisUtterance(body);
-      utterance.rate = 0.95;
-      const pitchMap: Record<string, number> = { sarah: 1.1, marcus: 0.85, priya: 1.15, tom: 0.95, elena: 1.0 };
-      utterance.pitch = pitchMap[characterId] ?? 1.0;
-      window.speechSynthesis.speak(utterance);
-    }
-
-    getSoundscape().playNotificationPing?.();
-
-    // Inject unlocked secrets after a short delay
-    if (newlyUnlocked.length > 0 && session) {
-      const secret = newlyUnlocked[0];
-      setTimeout(() => {
-        const secretMsg: Message = {
-          id: `secret-${secret.secretId}-${Date.now()}`,
-          from: characterId as CharacterId,
-          to: 'user',
-          channel: 'chat',
-          body: secret.message,
-          timestamp: new Date(),
-          read: false,
-        };
-        set(s => ({
-          messages: [...s.messages, secretMsg],
-          session: s.session ? {
-            ...s.session,
-            unlockedSecrets: [...s.session.unlockedSecrets, secret.secretId],
-          } : s.session,
-        }));
-        getSoundscape().playNotificationPing?.();
-      }, 2200);
-    }
-
-    // Fire chaos events
-    if (session) {
-      const config = DIFFICULTY_CONFIG[session.difficulty];
-      const totalFired = session.firedChaosIds.length + (session.chaosLog.length > 0 ? 0 : 0);
-
-      if (
-        totalFired < config.maxChaosEvents &&
-        session.elapsedSeconds > config.chaosAfterSeconds &&
-        Math.random() < config.chaosChance
-      ) {
-        // Pick an eligible chaos event
-        const available = CHAOS_EVENT_POOL.filter(e =>
-          !session.firedChaosIds.includes(e.id) &&
-          session.elapsedSeconds >= e.minElapsed
-        );
-
-        if (available.length > 0) {
-          // Prefer Tier 3 if pressure mode and not yet fired, else random Tier 1/2
-          const candidates = session.difficulty === 'pressure'
-            ? available
-            : available.filter(e => e.tier < 3 || session.firedChaosIds.length === 0);
-
-          const pick = candidates[Math.floor(Math.random() * candidates.length)] || available[0];
-
-          const chaos: ChaosEvent = {
-            id: Math.random().toString(36).slice(2),
-            type: pick.type,
-            title: pick.title,
-            description: pick.description,
-            severity: pick.severity,
-            tier: pick.tier,
-            firedAt: new Date(),
-            acknowledged: false,
-          };
-
-          const allAlarmed = pick.tier === 3;
-
-          set(s => ({
-            chaosOverlay: chaos,
-            session: s.session ? {
-              ...s.session,
-              chaosMode: 'chaos',
-              chaosTier: pick.tier,
-              chaosResolving: false,
-              chaosLog: [...s.session.chaosLog, chaos],
-              firedChaosIds: [...s.session.firedChaosIds, pick.id],
-            } : s.session,
-            characters: allAlarmed
-              ? get().characters.map(c => ({ ...c, emotion: 'alarmed' as const }))
-              : get().characters,
-          }));
-
-          getSoundscape().setChaosState?.(pick.tier);
-
-          // Persist chaos event to DB (fire and forget)
-          const { user: cu, dbSessionId: cSid } = get();
-          if (cu?.id && cSid) {
-            saveSessionEvent(cSid, cu.id, chaos).catch(() => {});
-          }
-        }
-      }
-
-      // Legacy engineer resignation (ensure backward compat)
-      if (
-        session.chaosLog.length === 0 &&
-        session.firedChaosIds.length === 0 &&
-        session.elapsedSeconds > config.chaosAfterSeconds &&
-        Math.random() < config.chaosChance
-      ) {
-        const tier = 3 as const;
-        const chaos: ChaosEvent = {
-          id: Math.random().toString(36).slice(2),
-          type: 'engineer_resignation',
-          title: 'URGENT: Team Alert',
-          description: 'A key engineer has submitted their resignation effective immediately. Engineering capacity is now at risk for the Q3 deadline.',
-          severity: 'critical',
-          tier,
-          firedAt: new Date(),
-          acknowledged: false,
-        };
-        set({
-          chaosOverlay: chaos,
-          session: {
-            ...session,
-            chaosMode: 'chaos',
-            chaosTier: tier,
-            chaosResolving: false,
-            chaosLog: [...session.chaosLog, chaos],
-            firedChaosIds: [...session.firedChaosIds, 'engineer_resignation'],
-          },
-          characters: get().characters.map(c => ({ ...c, emotion: 'alarmed' as const })),
+    // Constraint discovery detection
+    const { revealedConstraints } = get();
+    const detected = detectConstraint(characterId, body);
+    if (detected && !revealedConstraints.includes(detected)) {
+      const toastId = Math.random().toString(36).slice(2);
+      const charDisplayName = get().characters.find(c => c.id === characterId)?.name ?? characterId;
+      set(s => ({
+        revealedConstraints: [...s.revealedConstraints, detected],
+        constraintToasts: [...s.constraintToasts, {
+          id: toastId,
+          constraint: detected,
+          label: CONSTRAINT_LABELS[detected] ?? detected,
+          characterName: charDisplayName,
+        }],
+      }));
+      // Log constraint unlock event to DB
+      if (dbSessionId) {
+        apiPost(`/api/sessions/${dbSessionId}/events`, {
+          type: 'hidden_constraint_unlocked',
+          payload: { constraint: detected, characterId, elapsedSeconds: get().session?.elapsedSeconds ?? 0 },
         });
-        getSoundscape().setChaosState?.(tier);
       }
+      // Auto-dismiss constraint toast after 6s
+      setTimeout(() => {
+        set(s => ({ constraintToasts: s.constraintToasts.filter(t => t.id !== toastId) }));
+      }, 6000);
+    }
+
+    // Document share detection — trigger AI doc generation if character mentions sharing a file
+    if (dbSessionId) {
+      maybeGenerateDoc(characterId, body, dbSessionId);
+    }
+
+    // Play notification ping
+    getSoundscape().playNotificationPing();
+
+    // Teammate card progression: advance one of their assigned cards based on trust
+    const assigneeInitialMap: Record<string, string> = { marcus: 'M', tom: 'T', priya: 'P', sarah: 'S', elena: 'E' };
+    const assigneeInitial = assigneeInitialMap[characterId];
+    if (assigneeInitial && newTrust >= 0.45) {
+      const cooldowns = get().cardAdvanceCooldowns;
+      const lastAdvance = cooldowns[characterId as CharacterId] ?? 0;
+      const cooldownMs = 30000;
+      if (Date.now() - lastAdvance >= cooldownMs) {
+        setTimeout(() => {
+          const { kanbanColumns, moveKanbanCard, injectMessage, session: currentSession } = get();
+          if (!currentSession || currentSession.status !== 'active') return;
+          const inProgressCard = kanbanColumns.find(c => c.id === 'inprogress')?.cards.find(c => c.assignee === assigneeInitial && !c.blocked);
+          const backlogCard = kanbanColumns.find(c => c.id === 'backlog')?.cards.find(c => c.assignee === assigneeInitial && !c.blocked);
+          const currentTrust = get().characters.find(c => c.id === characterId)?.trust ?? 0;
+
+          let cardToAdvance: KanbanCard | undefined;
+          let toColId: string = '';
+
+          if (inProgressCard && currentTrust >= 0.65) {
+            cardToAdvance = inProgressCard;
+            toColId = 'review';
+          } else if (backlogCard) {
+            cardToAdvance = backlogCard;
+            toColId = 'inprogress';
+          }
+
+          if (!cardToAdvance) return;
+
+          moveKanbanCard(cardToAdvance.id, toColId);
+          set(s => ({ cardAdvanceCooldowns: { ...s.cardAdvanceCooldowns, [characterId]: Date.now() } }));
+
+          const cardSnapshot = cardToAdvance;
+          const toColSnapshot = toColId;
+          const advChar = get().characters.find(c => c.id === characterId)!;
+          const fallbackMsg = toColSnapshot === 'inprogress'
+            ? `Picking up "${cardSnapshot.title}" — I'll loop back when I have something.`
+            : `"${cardSnapshot.title}" is ready for your review — let me know if you need changes.`;
+          generateCharacterReply(
+            characterId,
+            'card_advanced_autonomous',
+            `You are moving "${cardSnapshot.title}" to ${toColSnapshot === 'inprogress' ? 'In Progress' : 'Review'}.`,
+            { character: advChar, recentMessages: get().messages, session: get().session!, kanbanColumns: get().kanbanColumns }
+          ).then(result => {
+            injectMessage(characterId as CharacterId, result.reply ?? fallbackMsg, 'chat');
+          });
+        }, 4000 + Math.random() * 6000);
+      }
+    }
+
+    // Maybe fire chaos (Tier 3 — engineer resignation, once per session)
+    if (session && !session.chaosLog.length && session.elapsedSeconds > 300 && Math.random() < 0.15) {
+      const tier = 3 as const;
+      const chaos: ChaosEvent = {
+        id: Math.random().toString(36).slice(2),
+        type: 'engineer_resignation',
+        title: 'URGENT: Team Alert',
+        description: 'A key engineer has submitted their resignation effective immediately. Engineering capacity is now at risk for the Q3 deadline.',
+        severity: 'critical',
+        tier,
+        firedAt: new Date(),
+        acknowledged: false,
+      };
+      // Block Marcus's active cards — capacity is now at risk
+      const columnsWithBlock = get().kanbanColumns.map(col => {
+        if (col.id !== 'inprogress' && col.id !== 'backlog') return col;
+        return { ...col, cards: col.cards.map(c => c.assignee === 'M' ? { ...c, blocked: true } : c) };
+      });
+      set({
+        chaosOverlay: chaos,
+        session: { ...session, chaosMode: 'chaos', chaosTier: tier, chaosResolving: false, chaosLog: [...session.chaosLog, chaos] },
+        // All characters shift to alarmed state at Tier 3
+        characters: get().characters.map(c => ({ ...c, emotion: 'alarmed' as const })),
+        kanbanColumns: columnsWithBlock,
+      });
+      getSoundscape().setChaosState(tier);
+      // Log chaos event to DB
+      const { dbSessionId: chaosDbId } = get();
+      if (chaosDbId) {
+        apiPost(`/api/sessions/${chaosDbId}/events`, {
+          type: 'chaos_triggered',
+          payload: { tier, type: 'engineer_resignation', elapsedSeconds: session.elapsedSeconds },
+        });
+      }
+      // Marcus flags the capacity impact on the board
+      setTimeout(() => {
+        get().injectMessage('marcus', "Given the team situation, I need to flag that my work on the board is at risk. I'll reassess capacity once things stabilize.", 'chat');
+      }, 2000);
     }
   },
 
@@ -591,84 +512,223 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ session: { ...session, simulationStage: 'reporting' } });
   },
 
-  generateDebrief: async () => {
-    const { session, characters, simPreferences } = get();
-    if (!session) return;
-
-    try {
-      const response = await fetch('/api/debrief', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          decisionHistory: session.decisionHistory,
-          characters,
-          session,
-          simPreferences,
-        }),
-      });
-      const { debrief } = await response.json();
-      set(s => ({
-        session: s.session ? { ...s.session, debrief } : s.session,
-      }));
-    } catch {
-      // Debrief unavailable — not critical
-    }
-  },
-
   completeSession: () => {
     const { session, user, dbSessionId, characters, kanbanColumns } = get();
     if (!session) return;
+
+    // Immediately mark as completed with portfolio status 'generating'
     const portfolio: PortfolioCaseStudy = {
       sessionId: session.id,
       sessionNumber: session.sessionNumber,
       scenarioName: 'The Roadmap Reckoning',
       sessionDate: new Date(),
-      userName: user?.name ?? 'Maya Chen',
-      scenarioSummary: 'Nexus Technologies — 300-person B2B SaaS, 10 days post-Series C. The incoming PM inherited a three-way roadmap conflict between Engineering, Sales, and Product, with a hard Monday board deadline and five stakeholders in active tension. Hidden constraints included a $3M investor clawback tied to an October 1st SSO milestone (unknown to the team), an engineering capacity crunch with a non-obvious deferral window, a sales commitment that was legally softer than presented, a build-vs-buy decision that Engineering had not volunteered, a second enterprise deal nobody had mentioned, and qualitative research connecting the NPS decline to onboarding friction — data that had been ready for two months but never surfaced. Resolving the scenario required uncovering six distinct hidden information layers across five stakeholders while managing an organisational tension between the CEO and VP Product.',
-      challenge: 'Consolidate a contested Q3 roadmap under a hard Friday deadline — without starting information — by navigating a CEO-bypassed-VP dynamic, discovering a $3M investor covenant, unlocking a third-party engineering alternative, verifying sales commitment language, surfacing critical user research, and delivering a structured options brief under board pressure.',
-      keyDecisions: [
-        { bullet: 'Aligned with VP Product Sarah Chen before acting — preserving the management relationship and extracting Series C investor context.' },
-        { bullet: 'Challenged Marcus on the "why" behind the 6-week estimate — surfacing the WorkOS alternative that reduced SSO delivery from 6 weeks to 2.' },
-        { bullet: 'Asked Tom to produce the actual Acme email chain — confirming the commitment was best-efforts, not contractual.' },
-        { bullet: 'Engaged Elena directly for the non-negotiable rationale on SSO — uncovering the $3M clawback clause unknown to the team.' },
-        { bullet: 'Asked Priya directly for her research data — surfacing the finding that 42% of trial drop-off tied to onboarding friction.' },
-        { bullet: 'Delivered a structured options brief with two scoped paths, documented trade-offs, and a clear recommendation.' },
-      ],
-      skillsAboveBaseline: [
-        { dimension: 'Strategic Thinking', score: 84, baselineDelta: +17 },
-        { dimension: 'Stakeholder Mgmt', score: 81, baselineDelta: +14 },
-        { dimension: 'Communication', score: 78, baselineDelta: +11 },
-        { dimension: 'Conflict Resolution', score: 74, baselineDelta: +9 },
-        { dimension: 'Prioritisation', score: 77, baselineDelta: +12 },
-      ],
-      performanceNarrative: `${user?.name ?? 'Maya'} navigated one of the most information-dense scenarios in the library with a level of investigative rigour that separates the top 15% of PMs at this experience level. The defining pattern was treating first-order information as a starting point rather than a conclusion — asking why the 6-week estimate existed rather than planning around it, pushing Elena for the actual rationale behind the SSO non-negotiable, and going to Priya rather than waiting for her to volunteer. Each of those moves unlocked information that materially changed the scope decision. This is not common instinct at 2–3 years of PM experience, and it will compound significantly with seniority.`,
-      verificationId: session.id,
+      userName: user?.name ?? 'PM',
+      scenarioSummary: '',
+      challenge: '',
+      keyDecisions: [],
+      skillsAboveBaseline: [],
+      performanceNarrative: '',
+      verificationId: dbSessionId ?? session.id,
       status: 'generating',
     };
-
     set({ session: { ...session, status: 'completed', simulationStage: 'reporting', portfolio } });
 
-    // Persist completed session to DB (fire and forget)
-    const completedSession = get().session;
-    if (user?.id && dbSessionId && completedSession) {
-      completeDbSession(dbSessionId, user.id, completedSession, portfolio).catch(() => {});
-    }
+    if (!dbSessionId) return;
 
-    // Generate AI debrief in background
-    get().generateDebrief();
+    // Final OKR progress average
+    const finalOkrProgress = Math.round(
+      session.okrs.reduce((sum, o) => sum + o.progress, 0) / Math.max(session.okrs.length, 1)
+    );
 
-    // Mark portfolio ready after 6s
-    setTimeout(() => {
+    // 1. Complete session + run scoring
+    apiPost(`/api/sessions/${dbSessionId}/complete`, {
+      planScore: session.planScore ?? 0,
+      finalOkrProgress,
+      elapsedSeconds: session.elapsedSeconds,
+      stateJson: { characters, kanbanColumns, okrs: session.okrs },
+    }).then(() => {
+      // 2. Kick off AI portfolio generation
+      return apiPost(`/api/sessions/${dbSessionId}/portfolio`, {});
+    }).then((data: any) => {
+      const portfolioData = data?.portfolio;
+      if (!portfolioData) return;
+
+      // Update local state with DB portfolio id and start polling
       set(s => ({
         session: s.session ? {
           ...s.session,
           portfolio: s.session.portfolio ? {
             ...s.session.portfolio,
-            verificationId: portfolio.verificationId ?? s.session.portfolio.verificationId,
+            verificationId: portfolioData.verificationId ?? s.session.portfolio.verificationId,
           } : null,
         } : null,
       }));
-    }, 6000);
+
+      // Poll for portfolio ready (every 5s, max 12 attempts = 60s)
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        attempts++;
+        if (attempts > 12) { clearInterval(poll); return; }
+        const res = await fetch(`/api/sessions/${dbSessionId}/portfolio`).catch(() => null);
+        if (!res?.ok) return;
+        const { portfolio: polled } = await res.json().catch(() => ({}));
+        if (polled?.status === 'ready') {
+          clearInterval(poll);
+          set(s => ({
+            session: s.session ? {
+              ...s.session,
+              portfolio: s.session.portfolio ? {
+                ...s.session.portfolio,
+                status: 'ready',
+                scenarioSummary: polled.scenarioSummary,
+                challenge: polled.challenge,
+                keyDecisions: polled.keyDecisions,
+                performanceNarrative: polled.performanceNarrative,
+                skillsAboveBaseline: Object.entries(polled.skillScores ?? {}).map(([k, v]) => ({
+                  dimension: k, score: v as number, baselineDelta: 0,
+                })),
+              } : null,
+            } : null,
+          }));
+        } else if (polled?.status === 'failed') {
+          clearInterval(poll);
+          set(s => ({
+            session: s.session ? {
+              ...s.session,
+              portfolio: s.session.portfolio ? { ...s.session.portfolio, status: 'failed' } : null,
+            } : null,
+          }));
+        }
+      }, 5000);
+    });
+  },
+
+  // Kanban
+  kanbanColumns: INITIAL_KANBAN_COLUMNS,
+  cardAdvanceCooldowns: {},
+
+  moveKanbanCard: (cardId, toColId) => {
+    const { kanbanColumns, session, updateOKR } = get();
+    let movedCard: KanbanCard | null = null;
+    const afterRemove = kanbanColumns.map(col => {
+      const found = col.cards.find(c => c.id === cardId);
+      if (found) { movedCard = found; return { ...col, cards: col.cards.filter(c => c.id !== cardId) }; }
+      return col;
+    });
+    if (!movedCard) return;
+    const card = movedCard as KanbanCard;
+    if (toColId === 'done' && card.linkedOkr && session) {
+      const okr = session.okrs.find(o => o.id === card.linkedOkr);
+      if (okr && okr.progress < 85) updateOKR(card.linkedOkr, Math.min(okr.progress + 35, 85));
+    }
+    set({ kanbanColumns: afterRemove.map(col => col.id !== toColId ? col : { ...col, cards: [...col.cards, card] }) });
+  },
+
+  injectMessage: (characterId, body, channel) => {
+    const msg: Message = {
+      id: Math.random().toString(36).slice(2),
+      from: characterId,
+      to: 'user',
+      channel,
+      body,
+      timestamp: new Date(),
+      read: false,
+    };
+    set(s => ({ messages: [...s.messages, msg] }));
+    getSoundscape().playNotificationPing();
+  },
+
+  onUserMoveCard: (card, fromColId, toColId) => {
+    const { characters, injectMessage, session, dbSessionId } = get();
+
+    // Log card move event
+    if (dbSessionId) {
+      apiPost(`/api/sessions/${dbSessionId}/events`, {
+        type: 'card_moved',
+        payload: {
+          cardTitle: card.title,
+          cardId: card.id,
+          assignee: card.assignee,
+          fromCol: fromColId,
+          toCol: toColId,
+          elapsedSeconds: session?.elapsedSeconds ?? 0,
+        },
+      });
+      scheduleStateSync(dbSessionId, get);
+    }
+    if (!session || session.status !== 'active') return;
+
+    // PM's own card moved to Done: relevant teammate acknowledges
+    if (card.assignee === 'Y' && toColId === 'done') {
+      const tagToChar: Record<string, CharacterId> = {
+        Eng: 'marcus', Sales: 'tom', Research: 'priya', UX: 'priya',
+        Executive: 'elena', Strategy: 'sarah', Product: 'sarah', Process: 'sarah',
+      };
+      const acknowledger: CharacterId = tagToChar[card.tag] ?? 'sarah';
+      const ackChar = characters.find(c => c.id === acknowledger);
+      const trust = ackChar?.trust ?? 0.5;
+      const ack = trust >= 0.65
+        ? `Good to see "${card.title}" wrapped up — that clears the path on my end.`
+        : `"${card.title}" done — noted.`;
+      setTimeout(() => {
+        get().injectMessage(acknowledger, ack, 'chat');
+      }, 2000 + Math.random() * 2000);
+      return;
+    }
+
+    // Only react to teammate cards
+    if (card.assignee === 'Y') return;
+    const charInitialMap: Record<string, CharacterId> = { M: 'marcus', T: 'tom', P: 'priya', S: 'sarah', E: 'elena' };
+    const characterId = charInitialMap[card.assignee];
+    if (!characterId) return;
+    const char = characters.find(c => c.id === characterId);
+    if (!char) return;
+
+    const trust = char.trust;
+    const tier: 'high' | 'mid' | 'low' = trust >= 0.65 ? 'high' : trust >= 0.45 ? 'mid' : 'low';
+    const reactions = CARD_REACTION_MAP[characterId];
+    const pick = (pool: string[]) => pool[Math.floor(Math.random() * pool.length)];
+
+    let pool: string[];
+    if (toColId === 'done') {
+      // Premature close: moved to Done without going through Review
+      const isPremature = fromColId !== 'review';
+      pool = isPremature
+        ? (tier === 'low' ? reactions.toDone.low : reactions.toDone.earlyClose)
+        : reactions.toDone.natural;
+    } else if (toColId === 'inprogress') {
+      pool = reactions.toInProgress[tier];
+    } else if (toColId === 'review') {
+      pool = reactions.toReview[tier];
+    } else if (toColId === 'backlog') {
+      pool = reactions.toBacklog;
+    } else {
+      return; // unknown column — no reaction
+    }
+
+    const isPremature = toColId === 'done' && fromColId !== 'review';
+    const triggerType: TriggerType = toColId === 'done'
+      ? 'card_moved_to_done'
+      : toColId === 'inprogress'
+        ? 'card_moved_to_inprogress'
+        : toColId === 'review'
+          ? 'card_moved_to_review'
+          : 'card_moved_to_inprogress';
+    const triggerBody = isPremature
+      ? `The PM moved your card "${card.title}" directly from ${fromColId} to Done — the work is not complete.`
+      : `The PM moved your card "${card.title}" from ${fromColId} to ${toColId}.`;
+
+    generateCharacterReply(
+      characterId,
+      triggerType,
+      triggerBody,
+      { character: char, recentMessages: get().messages, session: session!, kanbanColumns: get().kanbanColumns }
+    ).then(result => {
+      const text = result.reply ?? pick(pool);
+      setTimeout(() => {
+        get().injectMessage(characterId, text, 'chat');
+      }, 1500 + Math.random() * 1500);
+    });
   },
 
   onboardingStep: 0,
@@ -680,16 +740,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ assessmentAnswers: answers });
   },
 
-  simPreferences: null,
-  setSimPreferences: (simPreferences) => set({ simPreferences }),
+  revealedConstraints: [],
+  constraintToasts: [],
+  dismissConstraintToast: (id) => set(s => ({
+    constraintToasts: s.constraintToasts.filter(t => t.id !== id),
+  })),
 }));
-
-function getFallbackReply(characterId: string): string {
-  const replies = REPLY_MAP[characterId] || [];
-  return replies[Math.floor(Math.random() * replies.length)] || "I'll get back to you on this.";
-}
 
 // Expose store globally for dev navigation
 if (typeof window !== 'undefined') {
   (window as any).__appStore = useAppStore;
 }
+
+// REPLY_MAP is now defined in data.ts and imported at top of file
