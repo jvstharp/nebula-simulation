@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { db } from '@/lib/db';
+import { db } from '@/lib/db-server';
 
 // GET /api/documents?sessionId=... — list AI-generated documents for a session
 export async function GET(req: NextRequest) {

@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useAppStore } from "@/lib/store";
+import { ASSESSMENT_QUESTIONS } from "@/lib/assessment";
 
 const T = {
   bg:       '#121212',
@@ -11,13 +12,6 @@ const T = {
   border2:  'rgba(255,255,255,0.08)',
   primary:  '#147b58',
 } as const;
-
-const QUESTIONS = [
-  { id: 'q1', question: "You've just read three conflicting email chains from Engineering, Sales, and Design. Each team believes their Q3 priority should take the top slot. Walk me through your first 2 hours as the incoming PM." },
-  { id: 'q2', question: "Marcus from Engineering tells you 'six weeks minimum' for a critical feature the CEO considers non-negotiable. What do you say to him — right now, in this conversation?" },
-  { id: 'q3', question: "Your CEO wants one recommendation for Monday's board meeting, not a list of options. You see three viable paths, each with real trade-offs she needs to understand. How do you approach this?" },
-  { id: 'q4', question: "Priya from Design sends a brief message: 'I have some data that might be relevant to the Q3 plan.' You have 4 hours before your EOD milestone. What do you do?" },
-];
 
 interface Evaluation {
   score: number; feedback: string; needsFollowUp: boolean;
@@ -34,7 +28,7 @@ function ScoreDots({ score }: { score: number }) {
 }
 
 export function AssessmentScreen() {
-  const { setScreen, startSession, setActiveBrowserTab } = useAppStore();
+  const { setScreen, startSession, setActiveBrowserTab, setAssessmentAnswer } = useAppStore();
   const [current, setCurrent] = useState(0);
   const [answer, setAnswer] = useState('');
   const [followUpAnswer, setFollowUpAnswer] = useState('');
@@ -44,8 +38,8 @@ export function AssessmentScreen() {
   const [scores, setScores] = useState<number[]>([]);
   const [done, setDone] = useState(false);
 
-  const q = QUESTIONS[current];
-  const isLast = current === QUESTIONS.length - 1;
+  const q = ASSESSMENT_QUESTIONS[current];
+  const isLast = current === ASSESSMENT_ASSESSMENT_QUESTIONS.length - 1;
 
   const callEvaluate = async (ans: string, followUpQ?: string) => {
     setLoading(true);
@@ -74,6 +68,7 @@ export function AssessmentScreen() {
     const score = evaluation?.score ?? 3;
     const newScores = [...scores, score];
     setScores(newScores);
+    setAssessmentAnswer(current, score);
     if (isLast) { setDone(true); return; }
     setCurrent(c => c + 1);
     setAnswer(''); setFollowUpAnswer(''); setEvaluation(null); setShowFollowUp(false);
@@ -123,9 +118,9 @@ export function AssessmentScreen() {
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{ display: 'inline-flex', padding: '6px 14px', borderRadius: 99, background: T.surface, border: `1px solid ${T.border2}`, fontSize: 11, color: T.muted, letterSpacing: '0.06em', textTransform: 'uppercase' as const, marginBottom: 20 }}>Skill Baseline Assessment</div>
-          <h2 style={{ fontSize: 20, fontWeight: 600, color: T.text, marginBottom: 18, letterSpacing: '-0.01em' }}>Question {current+1} of {QUESTIONS.length}</h2>
+          <h2 style={{ fontSize: 20, fontWeight: 600, color: T.text, marginBottom: 18, letterSpacing: '-0.01em' }}>Question {current+1} of {ASSESSMENT_QUESTIONS.length}</h2>
           <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 99, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${(current/QUESTIONS.length)*100}%`, background: T.primary, borderRadius: 99, transition: 'width 0.3s ease' }} />
+            <div style={{ height: '100%', width: `${(current/ASSESSMENT_QUESTIONS.length)*100}%`, background: T.primary, borderRadius: 99, transition: 'width 0.3s ease' }} />
           </div>
         </div>
 
@@ -214,7 +209,7 @@ export function AssessmentScreen() {
             />
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
               <button onClick={handleNext} style={{ fontSize: 13, color: T.muted, background: 'none', border: 'none', cursor: 'pointer' }}>Skip</button>
-              <button onClick={() => { setShowFollowUp(false); callEvaluate(followUpAnswer, evaluation.followUpQuestion ?? undefined); setFollowUpAnswer(''); }}
+              <button onClick={() => { const ans = followUpAnswer; const fq = evaluation.followUpQuestion ?? undefined; setShowFollowUp(false); setEvaluation(null); setFollowUpAnswer(''); callEvaluate(ans, fq); }}
                 disabled={followUpAnswer.trim().length < 10}
                 style={{ padding: '10px 24px', borderRadius: 10, background: T.primary, border: 'none', color: '#fff', fontSize: 14, fontWeight: 600, cursor: followUpAnswer.trim().length < 10 ? 'not-allowed' : 'pointer', opacity: followUpAnswer.trim().length < 10 ? 0.4 : 1, fontFamily: 'inherit' }}>
                 Submit →

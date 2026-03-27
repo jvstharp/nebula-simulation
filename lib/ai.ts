@@ -24,7 +24,8 @@ const COL_NAMES: Record<string, string> = {
 
 export interface CharacterReplyResult {
   reply: string | null;
-  trustDelta: number;
+  // null means the API call failed or the response could not be parsed — use fallback
+  trustDelta: number | null;
 }
 
 export async function generateCharacterReply(
@@ -92,13 +93,13 @@ export async function generateCharacterReply(
       }),
     });
 
-    if (!res.ok) return { reply: null, trustDelta: 0 };
+    if (!res.ok) return { reply: null, trustDelta: null };
     const data = await res.json();
     return {
       reply: data.reply ?? null,
-      trustDelta: typeof data.trustDelta === 'number' ? data.trustDelta : 0,
+      trustDelta: typeof data.trustDelta === 'number' ? data.trustDelta : null,
     };
   } catch {
-    return { reply: null, trustDelta: 0 };
+    return { reply: null, trustDelta: null };
   }
 }

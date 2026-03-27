@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@/lib/supabase/server';
-import { db } from '@/lib/db';
+import { db } from '@/lib/db-server';
+import { CHARACTERS } from '@/lib/data';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const CHAR_NAMES: Record<string, string> = {
-  marcus: 'Marcus Lee', priya: 'Priya Sharma', tom: 'Tom Hart',
-  sarah: 'Sarah Chen', elena: 'Elena Rodriguez',
-};
-
-const CHAR_ROLES: Record<string, string> = {
-  marcus: 'Head of Engineering', priya: 'Lead Designer',
-  tom: 'Head of Sales', sarah: 'Senior Product Manager', elena: 'CEO',
-};
+// Build lookup maps from canonical CHARACTERS data so names/titles stay in sync
+const CHAR_NAMES: Record<string, string> = Object.fromEntries(
+  CHARACTERS.map(c => [c.id, c.name])
+);
+const CHAR_ROLES: Record<string, string> = Object.fromEntries(
+  CHARACTERS.map(c => [c.id, c.title])
+);
+const VALID_CHAR_IDS = new Set(CHARACTERS.map(c => c.id));
 
 function inferDocType(characterId: string, triggerMessage: string): { name: string; docType: 'pdf' | 'docx' | 'xlsx' } {
   const msg = triggerMessage.toLowerCase();
@@ -49,10 +49,9 @@ async function generateDocContent(
   characterId: string,
   docName: string,
   docType: string,
-  triggerMessage: string
 ): Promise<unknown> {
-  const charName = CHAR_NAMES[characterId] ?? characterId;
-  const charRole = CHAR_ROLES[characterId] ?? 'Colleague';
+  const charName = CHAR_NAMES[characterId]!;
+  const charRole = CHAR_ROLES[characterId]!;
 
   const prompt = `You are ${charName}, ${charRole} at Nexus Technologies — a 300-person B2B SaaS company that just closed a $20M Series C. You're writing "${docName}" to share with the new PM.
 
@@ -105,6 +104,11 @@ export async function POST(req: NextRequest) {
       triggerMessage: string;
     };
 
+    // Validate characterId against known characters
+    if (!VALID_CHAR_IDS.has(characterId)) {
+      return NextResponse.json({ error: 'Invalid character' }, { status: 400 });
+    }
+
     // Verify session belongs to user
     const session = await db.simSession.findFirst({ where: { id: sessionId, userId: user.id } });
     if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 });
@@ -123,14 +127,18 @@ export async function POST(req: NextRequest) {
     });
 
     // Generate content async (fire and forget)
-    generateDocContent(characterId, name, docType, triggerMessage).then(async (content) => {
+    generateDocContent(characterId, name, docType).then(async (content) => {
       await (db as any).simDocument.update({
         where: { id: doc.id },
         data: { status: 'ready', content: content as any },
       });
     }).catch(async (err) => {
       console.error('Doc generation failed:', err);
-      await (db as any).simDocument.update({ where: { id: doc.id }, data: { status: 'failed' } });
+      try {
+        await (db as any).simDocument.update({ where: { id: doc.id }, data: { status: 'failed' } });
+      } catch (updateErr) {
+        console.error('Failed to mark document as failed:', updateErr);
+      }
     });
 
     return NextResponse.json({ document: doc });

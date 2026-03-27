@@ -135,9 +135,9 @@ Respond as ${body.characterState.name} to this specific trigger. Stay in charact
 
     const raw = message.content[0].type === 'text' ? message.content[0].text.trim() : null;
 
-    // Parse JSON response; fall back to treating raw text as reply with neutral delta
+    // Parse JSON response; fall back to treating raw text as reply with null delta (signals parse failure)
     let reply: string | null = null;
-    let trustDelta = 0;
+    let trustDelta: number | null = null;
     if (raw) {
       try {
         const cleaned = raw.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
@@ -145,10 +145,10 @@ Respond as ${body.characterState.name} to this specific trigger. Stay in charact
         reply = parsed.reply ?? null;
         trustDelta = typeof parsed.delta === 'number'
           ? Math.max(-0.15, Math.min(0.15, parsed.delta))
-          : 0;
+          : null;
       } catch {
         reply = raw;
-        trustDelta = 0;
+        trustDelta = null;
       }
     }
 

@@ -1,34 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { createClient } from '@/lib/supabase/server';
+import { ASSESSMENT_QUESTIONS } from '@/lib/assessment';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// These are the open-text assessment questions tied to the Nexus scenario
-export const ASSESSMENT_QUESTIONS_OPEN = [
-  {
-    id: 'q1',
-    question: "You've just read three conflicting email chains from Engineering, Sales, and Design. Each team believes their Q3 priority should take the top slot. Walk me through your first 2 hours as the incoming PM.",
-    evaluationFocus: 'Does the answer prioritise understanding constraints over immediately forming an opinion? Do they do 1:1s before group sessions? Do they seek data before deciding?',
-  },
-  {
-    id: 'q2',
-    question: "Marcus from Engineering tells you 'six weeks minimum' for a critical feature the CEO considers non-negotiable. What do you say to him — right now, in this conversation?",
-    evaluationFocus: 'Do they push back on the estimate constructively? Do they explore assumptions (what is driving that number)? Do they ask about third-party alternatives? Do they avoid simply accepting or escalating?',
-  },
-  {
-    id: 'q3',
-    question: "Your CEO wants one recommendation for Monday's board meeting, not options. You see three viable paths, each with real trade-offs she needs to understand. How do you approach this?",
-    evaluationFocus: 'Do they understand how to give one recommendation while making the trade-offs visible? Do they avoid presenting options dressed up as a recommendation? Do they show they know when to ask a clarifying question vs when to decide?',
-  },
-  {
-    id: 'q4',
-    question: "Priya from Design sends you a brief message: 'I have some data that might be relevant to the Q3 plan.' You have 4 hours before your EOD milestone. What do you do?",
-    evaluationFocus: 'Do they immediately follow up and treat this as potentially important? Do they understand that understated messages from individual contributors often carry the most strategic weight? Do they make time despite the deadline?',
-  },
-];
-
 export async function POST(req: NextRequest) {
   try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const { questionId, question, answer, followUpQuestion } = await req.json() as {
       questionId: string;
       question: string;
@@ -36,7 +18,7 @@ export async function POST(req: NextRequest) {
       followUpQuestion?: string; // if this is a follow-up response
     };
 
-    const qMeta = ASSESSMENT_QUESTIONS_OPEN.find(q => q.id === questionId);
+    const qMeta = ASSESSMENT_QUESTIONS.find(q => q.id === questionId);
     const focus = qMeta?.evaluationFocus ?? 'Strong PM judgment, clarity of thinking, and stakeholder awareness.';
 
     const systemPrompt = `You are an expert PM coach evaluating a candidate's response to a situational assessment question for a senior Product Manager role.

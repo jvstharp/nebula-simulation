@@ -6,118 +6,135 @@ datasource db {
   provider = "postgresql"
 }
 
-model User {
-  id        String   @id // matches Supabase auth.users.id (UUID)
-  email     String   @unique
-  name      String
-  createdAt DateTime @default(now())
+// Note: users.id references auth.users(id) via a DB-level FK managed by Supabase.
+// Prisma does not manage the auth schema — the constraint exists in the DB already.
 
-  sessions SimSession[]
+model User {
+  id                String   @id @db.Uuid
+  name              String
+  email             String
+  credits           Int      @default(10)
+  avatar            String?
+  experienceLevel   String?  @map("experience_level")
+  preferredIndustry String?  @map("preferred_industry")
+  roleType          String?  @map("role_type")
+  institution       String?
+  domain            String?
+  additionalContext String?  @map("additional_context")
+  createdAt         DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt         DateTime @default(now()) @db.Timestamptz(6) @map("updated_at")
+
+  sessions      SimSession[]
+  simMessages   SimMessage[]
+  sessionEvents SessionEvent[]
 
   @@map("users")
 }
 
 model SimSession {
-  id            String   @id @default(cuid())
-  userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  scenarioId    String   @default("roadmap-reckoning")
-  status        String   @default("active") // active | completed | abandoned
-  stage         String   @default("planning") // planning | execution | reporting
-  stateJson     Json? // full Zustand snapshot (characters trust, kanban, okrs)
-  elapsedSeconds Int     @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId         String   @db.Uuid @map("user_id")
+  scenarioId     String   @map("scenario_id")
+  status         String   @default("active")
+  stage          String   @default("planning") @map("simulation_stage")
+  elapsedSeconds Int      @default(0) @map("elapsed_seconds")
+  stateJson      Json?    @map("state_json")
+  createdAt      DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt      DateTime @default(now()) @db.Timestamptz(6) @map("updated_at")
 
-  messages   SimMessage[]
-  events     SessionEvent[]
-  result     SessionResult?
-  portfolio  Portfolio?
-  documents  SimDocument[]
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  SimMessage[]
+  events    SessionEvent[]
+  result    SessionResult?
+  portfolio Portfolio?
+  documents SimDocument[]
 
-  @@index([userId])
   @@map("sim_sessions")
 }
 
 model SimMessage {
-  id        String     @id @default(cuid())
-  sessionId String
-  session   SimSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  from      String // characterId or 'user'
-  to        String
-  channel   String // chat | email
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  sessionId String   @db.Uuid @map("session_id")
+  userId    String?  @db.Uuid @map("user_id")
+  from      String   @map("from_id")
+  to        String   @map("to_id")
+  channel   String
+  subject   String?
   body      String
-  createdAt DateTime   @default(now())
+  read      Boolean  @default(false)
+  timestamp DateTime @default(now()) @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
 
-  @@index([sessionId, from])
+  session SimSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@map("sim_messages")
 }
 
 model SessionEvent {
-  id        String     @id @default(cuid())
-  sessionId String
-  session   SimSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  type      String // message_sent | card_moved | trust_changed | chaos_triggered | session_started | session_completed
-  payload   Json
-  createdAt DateTime   @default(now())
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  sessionId String   @db.Uuid @map("session_id")
+  userId    String?  @db.Uuid @map("user_id")
+  type      String   @map("event_type")
+  payload   Json     @default("{}")
+  createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
 
-  @@index([sessionId, type])
+  session SimSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@map("session_events")
 }
 
 model SessionResult {
-  id        String     @id @default(cuid())
-  sessionId String     @unique
-  session   SimSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  id                 String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  sessionId          String   @unique @db.Uuid @map("session_id")
+  prioritisation     Float    @default(0) @map("skill_prioritisation")
+  stakeholderMgmt    Float    @default(0) @map("skill_stakeholder_mgmt")
+  communication      Float    @default(0) @map("skill_communication")
+  conflictResolution Float    @default(0) @map("skill_conflict_resolution")
+  strategicThinking  Float    @default(0) @map("skill_strategic_thinking")
+  executionSpeed     Float    @default(0) @map("skill_execution_speed")
+  compositeScore     Float    @default(0) @map("composite_score")
+  constraintsFound   Int      @default(0) @map("constraints_found")
+  trustFinal         Json     @default("{}") @map("trust_final")
+  createdAt          DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt          DateTime @default(now()) @db.Timestamptz(6) @map("updated_at")
 
-  // Skill scores 0–100
-  prioritisation     Int @default(0)
-  stakeholderMgmt    Int @default(0)
-  communication      Int @default(0)
-  conflictResolution Int @default(0)
-  strategicThinking  Int @default(0)
-  executionSpeed     Int @default(0)
-
-  compositeScore   Int  @default(0)
-  constraintsFound Int  @default(0) // out of 6
-  trustFinal       Json? // { marcus: 0.7, sarah: 0.8, ... }
-
-  createdAt DateTime @default(now())
+  session SimSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@map("session_results")
 }
 
 model Portfolio {
-  id        String     @id @default(cuid())
-  sessionId String     @unique
-  session   SimSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  status    String     @default("generating") // generating | ready | failed
+  id                   String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  sessionId            String   @unique @db.Uuid @map("session_id")
+  status               String   @default("generating")
+  scenarioName         String   @map("scenario_name")
+  scenarioSummary      String?  @map("scenario_summary")
+  challenge            String?
+  keyDecisions         Json     @default("[]") @map("key_decisions")
+  skillScores          Json     @default("{}") @map("skills_above_baseline")
+  performanceNarrative String?  @map("performance_narrative")
+  verificationId       String?  @map("verification_id")
+  createdAt            DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt            DateTime @default(now()) @db.Timestamptz(6) @map("updated_at")
 
-  scenarioName         String
-  scenarioSummary      String
-  challenge            String
-  keyDecisions         Json // { bullet: string }[]
-  skillScores          Json // SkillScores object
-  performanceNarrative String?
-  verificationId       String @unique @default(cuid())
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  session SimSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@map("portfolios")
 }
 
 model SimDocument {
-  id          String     @id @default(cuid())
-  sessionId   String
-  session     SimSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  characterId String     // which teammate shared it
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  sessionId   String   @db.Uuid @map("session_id")
+  characterId String   @map("character_id")
   name        String
-  docType     String     // pdf | docx | xlsx
-  status      String     @default("generating") // generating | ready | failed
-  content     Json?      // structured document content
+  docType     String   @map("doc_type")
+  status      String   @default("generating")
+  content     Json?
+  createdAt   DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
 
-  createdAt DateTime @default(now())
+  session SimSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
   @@map("sim_documents")

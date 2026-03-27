@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { AppWindow } from "@/components/layout/app-window";
 import { SectionHeader, cardStyle, cardHoverIn, cardHoverOut } from "@/components/layout/discovery-ui";
 import { useAppStore } from "@/lib/store";
+import { CHARACTERS } from "@/lib/data";
 
 /* ── Icons ──────────────────────────────────────────────────────────────────── */
 function FolderIcon({ color = '#fbbf24', size = 28 }: { color?: string; size?: number }) {
@@ -797,12 +798,8 @@ function DocViewer({ file, isNew, onClose }: {
 }
 
 /* ── Vault Screen ───────────────────────────────────────────────────────────── */
-const CHAR_COLORS: Record<string, string> = {
-  marcus: '#60a5fa', priya: '#a78bfa', tom: '#34d399', sarah: '#f59e0b', elena: '#f87171',
-};
-const CHAR_DISPLAY: Record<string, string> = {
-  marcus: 'Marcus Lee', priya: 'Priya Sharma', tom: 'Tom Hart', sarah: 'Sarah Chen', elena: 'Elena Rodriguez',
-};
+const CHAR_COLORS: Record<string, string> = Object.fromEntries(CHARACTERS.map(c => [c.id, c.color]));
+const CHAR_DISPLAY: Record<string, string> = Object.fromEntries(CHARACTERS.map(c => [c.id, c.name]));
 
 interface AiDoc {
   id: string; name: string; docType: string; characterId: string; status: string;

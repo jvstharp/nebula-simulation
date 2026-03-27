@@ -273,8 +273,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
     ).then(result => {
       const fallbackPool = REPLY_MAP[activeCharacter.id] || [];
       const text = result.reply ?? (fallbackPool[Math.floor(Math.random() * fallbackPool.length)] || "I'll get back to you on this.");
-      // Use AI-derived trust delta; fall back to small random value if API returned 0 (parse failure)
-      const trustDelta = result.trustDelta !== 0 ? result.trustDelta : (Math.random() - 0.35) * 0.08;
+      // Use AI-derived trust delta; fall back to small random value if API failed to return one
+      const trustDelta = result.trustDelta !== null ? result.trustDelta : (Math.random() - 0.35) * 0.08;
       get().receiveReply(activeCharacter.id, text, trustDelta);
     });
   },
