@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
     };
 
     // Validate characterId against known characters
-    if (!VALID_CHAR_IDS.has(characterId)) {
+    if (!VALID_CHAR_IDS.has(characterId as any)) {
       return NextResponse.json({ error: 'Invalid character' }, { status: 400 });
     }
 
