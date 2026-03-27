@@ -157,8 +157,8 @@ function ProfileModal({ char, onClose }: { char: Character; onClose: () => void 
 
 /* ── Main component ─────────────────────────────────────────────────────────── */
 export function MissionBriefingScreen() {
-  const { setScreen, simPreferences, user } = useAppStore();
-  const displayName = simPreferences?.displayName ?? user?.name ?? 'there';
+  const { setScreen, user } = useAppStore();
+  const displayName = user?.name ?? 'there';
 
   const [vis, setVis] = useState({ s1: false, s2: false, team: false, cta: false });
   const [selectedChar, setSelectedChar] = useState<Character | null>(null);
