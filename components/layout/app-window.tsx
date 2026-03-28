@@ -100,7 +100,7 @@ export function AppWindow({
   screenKey, url, urlAccent = 'rgba(255,255,255,0.3)',
   label, accentColor, maxWidth = 1280, defaultHeight, children,
 }: AppWindowProps) {
-  const { setScreen, minimizeWindow } = useAppStore();
+  const { setScreen, minimizeWindow, user } = useAppStore();
   const [maximized, setMaximized] = useState(false);
   const [isMinimizing, setIsMinimizing] = useState(false);
   const [justRestored, setJustRestored] = useState(true);
@@ -275,7 +275,7 @@ export function AppWindow({
             background: 'linear-gradient(145deg, #c97b50, #7b3a1e)',
             border: '1.5px solid rgba(255,255,255,0.18)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer',
+            cursor: 'pointer', overflow: 'hidden',
             transition: 'border-color 150ms, box-shadow 150ms',
           }}
           onMouseEnter={e => {
@@ -287,13 +287,18 @@ export function AppWindow({
             (e.currentTarget as HTMLDivElement).style.boxShadow = 'none';
           }}
         >
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-            <ellipse cx="10" cy="8"    rx="4"   ry="4.5" fill="rgba(255,255,255,0.85)" />
-            <ellipse cx="10" cy="18"   rx="6.5" ry="5"   fill="rgba(255,255,255,0.85)" />
-            <ellipse cx="10" cy="5.5"  rx="4.5" ry="3"   fill="#2a1a0e" />
-            <ellipse cx="5.5"  cy="8.5" rx="1.2" ry="3.5" fill="#2a1a0e" />
-            <ellipse cx="14.5" cy="8.5" rx="1.2" ry="3.5" fill="#2a1a0e" />
-          </svg>
+          {user?.avatar ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={user.avatar} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+              <ellipse cx="10" cy="8"    rx="4"   ry="4.5" fill="rgba(255,255,255,0.85)" />
+              <ellipse cx="10" cy="18"   rx="6.5" ry="5"   fill="rgba(255,255,255,0.85)" />
+              <ellipse cx="10" cy="5.5"  rx="4.5" ry="3"   fill="#2a1a0e" />
+              <ellipse cx="5.5"  cy="8.5" rx="1.2" ry="3.5" fill="#2a1a0e" />
+              <ellipse cx="14.5" cy="8.5" rx="1.2" ry="3.5" fill="#2a1a0e" />
+            </svg>
+          )}
         </div>
       </div>
 
