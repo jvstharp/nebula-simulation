@@ -1,11 +1,13 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAppStore } from "@/lib/store";
 import { USER_AVATAR } from "@/lib/data";
 import { supabase } from "@/lib/supabase";
 
 export function LoginScreen() {
   const { setScreen, setUser } = useAppStore();
+  const router = useRouter();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -112,6 +114,26 @@ export function LoginScreen() {
 
       {/* Card */}
       <div style={{ position: 'relative', zIndex: 10, width: '100%', maxWidth: 360, margin: '0 16px' }}>
+        {/* Back link */}
+        <div style={{ textAlign: 'center', marginBottom: 12 }}>
+          <button
+            onClick={() => router.push('/')}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: 12, color: 'rgba(240,240,243,0.35)', display: 'inline-flex',
+              alignItems: 'center', gap: 5, padding: '4px 8px', borderRadius: 6,
+              transition: 'color 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = 'rgba(240,240,243,0.65)'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'rgba(240,240,243,0.35)'; }}
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M8 6H4M4 6l2-2M4 6l2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            nebula.so
+          </button>
+        </div>
+
         {/* Wordmark */}
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{

@@ -9,20 +9,18 @@ export async function createDbSession(
     .from('sim_sessions')
     .insert({
       id: session.id,
-      user_id: userId,
-      scenario_id: session.scenarioId,
-      session_number: session.sessionNumber,
+      userId,
+      scenarioId: session.scenarioId,
       status: session.status,
-      difficulty: session.difficulty,
-      simulation_stage: session.simulationStage,
-      elapsed_seconds: session.elapsedSeconds,
-      credits: session.credits,
-      composite_score: session.compositeScore,
-      chaos_mode: session.chaosMode,
-      okrs: session.okrs,
-      dynamic_analytics: session.dynamicAnalytics,
-      last_contacted_at: session.lastContactedAt,
-      started_at: session.startedAt,
+      stage: session.simulationStage,
+      elapsedSeconds: session.elapsedSeconds,
+      stateJson: {
+        difficulty: session.difficulty,
+        sessionNumber: session.sessionNumber,
+        credits: session.credits,
+        compositeScore: session.compositeScore,
+        startedAt: session.startedAt,
+      },
     })
     .select('id')
     .single();
@@ -36,45 +34,44 @@ export async function createDbSession(
 
 export async function saveMessage(
   dbSessionId: string,
-  userId: string,
+  _userId: string,
   msg: Message
 ): Promise<void> {
   const { error } = await supabase.from('sim_messages').insert({
-    session_id: dbSessionId,
-    user_id: userId,
-    from_id: msg.from,
-    to_id: msg.to,
+    sessionId: dbSessionId,
+    from: msg.from,
+    to: msg.to,
     channel: msg.channel,
     subject: msg.subject ?? null,
     body: msg.body,
     read: msg.read,
-    timestamp: msg.timestamp,
   });
   if (error) console.error('[db] saveMessage error:', error.message);
 }
 
 export async function saveSessionEvent(
   dbSessionId: string,
-  userId: string,
+  _userId: string,
   event: ChaosEvent
 ): Promise<void> {
   const { error } = await supabase.from('session_events').insert({
-    session_id: dbSessionId,
-    user_id: userId,
-    event_type: event.type,
-    title: event.title,
-    description: event.description,
-    severity: event.severity,
-    tier: event.tier,
-    acknowledged: event.acknowledged,
-    fired_at: event.firedAt,
+    sessionId: dbSessionId,
+    type: event.type,
+    payload: {
+      title: event.title,
+      description: event.description,
+      severity: event.severity,
+      tier: event.tier,
+      acknowledged: event.acknowledged,
+      firedAt: event.firedAt,
+    },
   });
   if (error) console.error('[db] saveSessionEvent error:', error.message);
 }
 
 export async function completeDbSession(
   dbSessionId: string,
-  userId: string,
+  _userId: string,
   session: SessionState,
   portfolio: PortfolioCaseStudy
 ): Promise<void> {
@@ -85,50 +82,48 @@ export async function completeDbSession(
       .from('sim_sessions')
       .update({
         status: 'completed',
-        simulation_stage: session.simulationStage,
-        elapsed_seconds: session.elapsedSeconds,
-        credits: session.credits,
-        composite_score: session.compositeScore,
-        chaos_mode: session.chaosMode,
-        unlocked_secrets: session.unlockedSecrets,
-        fired_cascades: session.firedCascades,
-        fired_chaos_ids: session.firedChaosIds,
-        okrs: session.okrs,
-        dynamic_analytics: session.dynamicAnalytics,
-        last_contacted_at: session.lastContactedAt,
-        completed_at: new Date(),
+        stage: session.simulationStage,
+        elapsedSeconds: session.elapsedSeconds,
+        stateJson: {
+          difficulty: session.difficulty,
+          sessionNumber: session.sessionNumber,
+          credits: session.credits,
+          compositeScore: session.compositeScore,
+          unlockedSecrets: session.unlockedSecrets,
+          firedCascades: session.firedCascades,
+          firedChaosIds: session.firedChaosIds,
+          okrs: session.okrs,
+          dynamicAnalytics: session.dynamicAnalytics,
+          lastContactedAt: session.lastContactedAt,
+          completedAt: new Date(),
+        },
       })
       .eq('id', dbSessionId),
 
     supabase.from('session_results').upsert({
-      session_id: dbSessionId,
-      user_id: userId,
-      composite_score: session.compositeScore,
-      skill_prioritisation: skills.prioritisation,
-      skill_stakeholder_mgmt: skills.stakeholderMgmt,
-      skill_communication: skills.communication,
-      skill_conflict_resolution: skills.conflictResolution,
-      skill_strategic_thinking: skills.strategicThinking,
-      skill_execution_speed: skills.executionSpeed,
+      sessionId: dbSessionId,
+      compositeScore: session.compositeScore,
+      prioritisation: skills.prioritisation,
+      stakeholderMgmt: skills.stakeholderMgmt,
+      communication: skills.communication,
+      conflictResolution: skills.conflictResolution,
+      strategicThinking: skills.strategicThinking,
+      executionSpeed: skills.executionSpeed,
       debrief: session.debrief ?? [],
-      decision_history: session.decisionHistory,
-    }),
+      decisionHistory: session.decisionHistory,
+    }, { onConflict: 'sessionId' }),
 
     supabase.from('portfolios').upsert({
-      session_id: dbSessionId,
-      user_id: userId,
-      session_number: portfolio.sessionNumber,
-      scenario_name: portfolio.scenarioName,
-      session_date: portfolio.sessionDate,
-      user_name: portfolio.userName,
-      scenario_summary: portfolio.scenarioSummary,
-      challenge: portfolio.challenge,
-      key_decisions: portfolio.keyDecisions,
-      skills_above_baseline: portfolio.skillsAboveBaseline,
-      performance_narrative: portfolio.performanceNarrative,
-      verification_id: portfolio.verificationId,
+      sessionId: dbSessionId,
       status: portfolio.status,
-    }),
+      scenarioName: portfolio.scenarioName,
+      scenarioSummary: portfolio.scenarioSummary,
+      challenge: portfolio.challenge,
+      keyDecisions: portfolio.keyDecisions,
+      skillScores: portfolio.skillsAboveBaseline,
+      performanceNarrative: portfolio.performanceNarrative,
+      verificationId: portfolio.verificationId,
+    }, { onConflict: 'sessionId' }),
   ]);
 
   if (sessionUpdate.error) console.error('[db] completeDbSession session update error:', sessionUpdate.error.message);
