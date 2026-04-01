@@ -1,300 +1,443 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useAppStore } from "@/lib/store";
-import { SimPreferences } from "@/lib/types";
+import { Avatar } from "@/components/ui/avatar";
+import { CHARACTERS } from "@/lib/data";
+import type { SimCompany } from "@/lib/types";
 
-/* ── Design tokens ─────────────────────────────────────────────────────────── */
 const T = {
-  bg:      '#0a0c0b',
-  primary: '#147b58',
-  text:    '#efefef',
-  muted:   'rgba(175,163,159,0.75)',
-  dim:     'rgba(175,163,159,0.4)',
+  bg:       '#121212',
+  surface:  '#212121',
+  surface2: '#2e2c2e',
+  text:     '#efefef',
+  muted:    '#afa39f',
+  border:   'rgba(255,255,255,0.04)',
+  border2:  'rgba(255,255,255,0.08)',
+  primary:  '#147b58',
+  shadow1:  '0 1px 2px rgba(0,0,0,0.6)',
+  shadow2:  '0 6px 18px rgba(0,0,0,0.7)',
 } as const;
 
-const OFFICE_IMG = 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=1600&q=80';
+const CHAR_PROFILES: Record<string, { about: string; relationship: string; focus: string; approach: string; tags: string[] }> = {
+  sarah: {
+    about: 'Sarah has been at Nexus since Series A and holds more institutional knowledge than anyone else in the building. She was bypassed by Elena this week and is carefully deciding whether to trust you.',
+    relationship: "Technically a peer, but she owns the product process you'll need sign-off from. She knows every stakeholder and every political landmine — treat her as a partner and she becomes your strongest ally.",
+    focus: "Ensuring Product has sign-off before anything reaches the board. She cannot be surprised on Monday — this is a professional credibility issue, not just process preference.",
+    approach: "Bring her in early. Never let her hear something through Elena first. Ask for her read before you form your own position.",
+    tags: ['Ally potential', 'Process gate', 'Institutional memory'],
+  },
+  marcus: {
+    about: "Marcus lost his best engineer three weeks ago and is holding the team together through sheer will. He quotes \"six weeks\" because of a security review process — not his own estimate — a distinction he hasn't volunteered yet.",
+    relationship: "You need Engineering's commitment to make any plan credible. Marcus will give you an honest answer if you ask the right question — but he won't volunteer information he wasn't asked for.",
+    focus: "Protecting his team from scope creep. Engineering is at 94% capacity — one more unplanned item tips into quality failures. He needs to be in the room before any commitment is made.",
+    approach: "Ask open questions. Don't pressure him on timeline — explore constraints instead. Ask him specifically whether he's looked at third-party alternatives.",
+    tags: ['Critical dependency', 'Capacity constrained', 'Key information holder'],
+  },
+  priya: {
+    about: "Priya has been burned twice by sharing research that got deprioritised without explanation, so she no longer volunteers findings proactively. The data she's sitting on is the most strategically relevant information in this scenario.",
+    relationship: "She leads Design and has a scoped, lightweight fix for the NPS drop ready to go. She will share everything if asked directly and treated as a decision-making peer rather than a supporting function.",
+    focus: "Preventing the onboarding improvement from being cut for the fourth consecutive quarter. She wants to surface the connection between UX debt and commercial churn before the board meeting locks in scope.",
+    approach: "Ask her directly what the data shows. Don't position her as a resource — position her as a co-author of the solution. She responds to being included, not consulted.",
+    tags: ['Research holder', 'Under-utilised', 'High-trust potential'],
+  },
+  tom: {
+    about: "Tom is high-energy and genuinely worried about the Acme deal. He's characterising the situation as worse than it is — partly anxiety, partly hoping urgency forces a faster decision. The actual email chain is more carefully scoped than his verbal framing suggests.",
+    relationship: "He brings external commercial pressure that is real, even if slightly overstated. He also has intelligence about a second enterprise prospect with identical SSO requirements that he hasn't shared yet.",
+    focus: "Protecting the Acme deal and giving his team a credible story before the next procurement call. A concrete date or a private beta offer both work — he can't go back with ambiguity.",
+    approach: "Ask him to forward the actual Acme email chain. Don't just accept his verbal summary. Be specific about what you need from him and he'll deliver it.",
+    tags: ['Commercial pressure', 'Hidden intelligence', 'Needs a concrete ask'],
+  },
+  elena: {
+    about: "Elena is board-aware and fast-moving. She operates on the assumption that context flows correctly through the organisation without checking. She has a critical piece of information she hasn't shared — not because she's hiding it, but because she genuinely believes everyone already knows.",
+    relationship: "She's your CEO and the person who promoted you. She bypassed Sarah out of urgency, not politics, and will correct for it if it's raised explicitly. She wants one credible, unified plan by Monday.",
+    focus: "Walking into the board meeting with a single Q3 narrative. The Series C lead investor will be in the room and has been asking about SSO progress since the term sheet was signed.",
+    approach: "Never bring her options without a recommendation. Frame trade-offs with a clear point of view. Raise the Sarah situation directly — she'll appreciate it.",
+    tags: ['Decision authority', 'Information gap', 'Needs a recommendation'],
+  },
+};
 
-/* ── Mock AI conversation ───────────────────────────────────────────────────── */
-function getNovaMessage(turn: number, prefs: Partial<SimPreferences>): string {
-  switch (turn) {
-    case 0: return "Hey! I'm Nova, your Nebula AI guide. Before we build your simulation environment, I need to know a bit about you. What's your name?";
-    case 1: return `Great to meet you, ${prefs.displayName}! Are you currently a student or a working professional?`;
-    case 2: return `Got it. What ${prefs.roleType === 'student' ? 'school' : 'company'} are you currently at?`;
-    case 3: return "What domain do you want to practice? For example: product management, marketing, data analytics, UX research, consulting — you can be as specific as you like.";
-    case 4: return `How many years of experience do you have in ${prefs.domain || 'this area'}? It's okay if it's zero — just let me know where you're starting from.`;
-    case 5: return "Almost there — what industry interests you most? For example: Tech / SaaS, Finance, Healthcare, Consumer Goods, or Consulting.";
-    case 6: return `Perfect. Based on your profile, I've matched you with Nexus Technologies — a $20M Series C B2B SaaS company. You're stepping in as Product Manager.\n\nThree conflicting roadmaps, a $2M enterprise deal on the line, and a board meeting Monday. Your workspace is ready.`;
-    default: return "";
-  }
-}
+// step 0 = AI chat; step 1 = team; step 2 = tutorial
+const SCENES = [
+  { type: 'team' as const, title: 'Your Colleagues', body: '', cta: 'Learn the interface →' },
+  {
+    type: 'tutorial' as const,
+    title: 'How it works',
+    body: "The simulation runs across 3 sessions. Each session has OKRs you need to advance, AI colleagues who respond to your choices, and chaos events that force real-time decisions.\n\nYour decisions persist. How you treat Marcus in Session 1 shapes how much he helps you in Session 3.",
+    cta: 'Begin assessment →',
+  },
+];
 
-function extractPrefs(text: string, turn: number, current: Partial<SimPreferences>): Partial<SimPreferences> {
-  switch (turn) {
-    case 0: return { ...current, displayName: text.trim() };
-    case 1: {
-      const lower = text.toLowerCase();
-      const roleType: 'student' | 'professional' =
-        lower.includes('student') || lower.includes('school') || lower.includes('uni') || lower.includes('college')
-          ? 'student' : 'professional';
-      return { ...current, roleType };
-    }
-    case 2: return { ...current, institution: text.trim() };
-    case 3: return { ...current, domain: text.trim() };
-    case 4: return { ...current, experienceLevel: text.trim() };
-    case 5: return { ...current, preferredIndustry: text.trim() };
-    default: return current;
-  }
-}
+interface ChatMsg { role: 'alex' | 'user'; text: string; id: string }
 
-/* ── Internal types ─────────────────────────────────────────────────────────── */
-interface Msg { id: string; role: 'assistant' | 'user'; content: string; }
-let _uid = 0;
-const mkId = () => String(++_uid);
-
-/* ── Sub-components ─────────────────────────────────────────────────────────── */
-function TypingDots() {
+function Chevron({ open }: { open: boolean }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-      <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg, #147b58, #0a2e1f)', border: '1px solid rgba(20,123,88,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#fff', flexShrink: 0, marginTop: 2 }}>N</div>
-      <div style={{ display: 'inline-flex', gap: 5, padding: '14px 18px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px 18px 18px 18px', backdropFilter: 'blur(8px)' }}>
-        {[0, 1, 2].map(i => (
-          <div key={i} style={{ width: 7, height: 7, borderRadius: '50%', background: T.muted, animation: `novaBounce 1.2s ease-in-out ${i * 200}ms infinite` }} />
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
+      style={{ transition: 'transform 0.25s ease', transform: open ? 'rotate(180deg)' : 'rotate(0deg)', flexShrink: 0 }}>
+      <path d="M3 5l4 4 4-4" stroke="rgba(175,163,159,0.5)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ProfileLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(175,163,159,0.5)', marginBottom: 5 }}>
+      {children}
+    </div>
+  );
+}
+
+function CharProfile({ char }: { char: typeof CHARACTERS[number] }) {
+  const p = CHAR_PROFILES[char.id];
+  if (!p) return null;
+  const trustPct = Math.round(char.trust * 100);
+  const trustColor = char.trust >= 0.7 ? '#22c55e' : char.trust >= 0.5 ? '#f59e0b' : '#ef4444';
+  const emotionColors: Record<string, string> = { neutral: 'rgba(255,255,255,0.35)', cooperative: '#22c55e', frustrated: '#ef4444', disengaged: '#6b7280', alarmed: '#f59e0b' };
+  const emoColor = emotionColors[char.emotion] ?? 'rgba(255,255,255,0.35)';
+  const emotionLabels: Record<string, string> = { neutral: 'Neutral', cooperative: 'Cooperative', frustrated: 'Frustrated', disengaged: 'Disengaged', alarmed: 'Alarmed' };
+
+  return (
+    <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 16, animation: 'fadeSlideIn 0.22s ease' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <div style={{ width: 7, height: 7, borderRadius: '50%', background: char.online ? '#22c55e' : '#6b7280', boxShadow: char.online ? '0 0 6px rgba(34,197,94,0.6)' : 'none' }} />
+          <span style={{ fontSize: 11, color: T.muted }}>{char.online ? 'Online' : 'Offline'}</span>
+        </div>
+        <div style={{ fontSize: 10.5, fontWeight: 600, color: emoColor, background: `${emoColor}18`, border: `1px solid ${emoColor}30`, borderRadius: 5, padding: '2px 8px' }}>
+          {emotionLabels[char.emotion] ?? char.emotion}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginLeft: 'auto' }}>
+          <span style={{ fontSize: 10.5, color: T.muted, whiteSpace: 'nowrap' }}>Initial trust</span>
+          <div style={{ width: 64, height: 4, background: 'rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
+            <div style={{ width: `${trustPct}%`, height: '100%', background: trustColor, borderRadius: 2 }} />
+          </div>
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: trustColor, minWidth: 28 }}>{trustPct}%</span>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {p.tags.map(tag => (
+          <span key={tag} style={{ fontSize: 10.5, fontWeight: 600, padding: '3px 9px', borderRadius: 5, background: `${char.color}14`, color: char.color, border: `1px solid ${char.color}28` }}>{tag}</span>
         ))}
       </div>
-    </div>
-  );
-}
-
-function AIBubble({ content, showAvatar }: { content: string; showAvatar: boolean }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, animation: 'novaFadeUp 0.35s ease' }}>
-      {showAvatar ? (
-        <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg, #147b58, #0a2e1f)', border: '1px solid rgba(20,123,88,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#fff', flexShrink: 0, marginTop: 2 }}>N</div>
-      ) : (
-        <div style={{ width: 28, flexShrink: 0 }} />
-      )}
-      <div style={{ maxWidth: 480, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px 18px 18px 18px', padding: '12px 16px', fontSize: 14.5, color: T.text, lineHeight: 1.7, backdropFilter: 'blur(8px)', whiteSpace: 'pre-line' }}>
-        {content}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 9, padding: '11px 13px' }}>
+          <ProfileLabel>About</ProfileLabel>
+          <p style={{ fontSize: 12.5, color: T.muted, lineHeight: 1.65, margin: 0 }}>{p.about}</p>
+        </div>
+        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 9, padding: '11px 13px' }}>
+          <ProfileLabel>Working relationship</ProfileLabel>
+          <p style={{ fontSize: 12.5, color: T.muted, lineHeight: 1.65, margin: 0 }}>{p.relationship}</p>
+        </div>
+        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 9, padding: '11px 13px' }}>
+          <ProfileLabel>What they're focused on</ProfileLabel>
+          <p style={{ fontSize: 12.5, color: T.muted, lineHeight: 1.65, margin: 0 }}>{p.focus}</p>
+        </div>
+        <div style={{ background: `${char.color}0a`, border: `1px solid ${char.color}22`, borderRadius: 9, padding: '11px 13px' }}>
+          <ProfileLabel>How to approach them</ProfileLabel>
+          <p style={{ fontSize: 12.5, color: T.text, lineHeight: 1.65, margin: 0 }}>{p.approach}</p>
+        </div>
       </div>
     </div>
   );
 }
 
-function UserBubble({ content }: { content: string }) {
+/* ── Company Card ────────────────────────────────────────────────────────────── */
+function CompanyCard({ company, onSelect, selected }: { company: SimCompany; onSelect: (c: SimCompany) => void; selected: boolean }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'flex-end', animation: 'novaFadeUp 0.25s ease' }}>
-      <div style={{ maxWidth: 360, padding: '10px 16px', borderRadius: '18px 18px 4px 18px', background: 'rgba(20,123,88,0.18)', border: '1px solid rgba(20,123,88,0.3)', fontSize: 14, color: T.text, fontWeight: 500, lineHeight: 1.6 }}>
-        {content}
+    <div style={{
+      background: selected ? `${T.primary}14` : 'rgba(255,255,255,0.03)',
+      border: `1px solid ${selected ? T.primary + '55' : 'rgba(255,255,255,0.09)'}`,
+      borderRadius: 12, padding: '14px 16px', cursor: 'pointer',
+      transition: 'all 0.18s ease',
+    }} onClick={() => onSelect(company)}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 2 }}>{company.name}</div>
+          <div style={{ fontSize: 11.5, color: T.muted }}>{company.size} · {company.industry}</div>
+        </div>
+        {selected && <div style={{ width: 18, height: 18, borderRadius: '50%', background: T.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l2.5 2.5L9 1" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </div>}
+      </div>
+      <p style={{ fontSize: 12, color: 'rgba(175,163,159,0.7)', lineHeight: 1.55, margin: '0 0 8px', fontStyle: 'italic' }}>&ldquo;{company.tagline}&rdquo;</p>
+      <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.55, marginBottom: 6 }}>
+        <span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.5)', fontSize: 10, letterSpacing: '0.07em', textTransform: 'uppercase' }}>Your challenge </span>
+        {company.challenge}
+      </div>
+      <div style={{ fontSize: 11.5, color: T.primary, lineHeight: 1.5 }}>
+        <span style={{ fontWeight: 600, fontSize: 10, letterSpacing: '0.07em', textTransform: 'uppercase', opacity: 0.7 }}>Why this fits </span>
+        {company.why}
       </div>
     </div>
   );
 }
 
-/* ── Mic icon SVG ───────────────────────────────────────────────────────────── */
-function MicIcon({ active }: { active: boolean }) {
+/* ── AI Onboarding Chat ──────────────────────────────────────────────────────── */
+function OnboardingChat({ userName, onComplete, onSkip }: { userName: string; onComplete: (company: SimCompany) => void; onSkip: () => void }) {
+  const firstMsg = `Hi ${userName}, I'm Alex. I'll match you to the right company scenario in just a couple of questions. What kind of product work have you been doing, and in what industry?`;
+  const [msgs, setMsgs] = useState<ChatMsg[]>([{ role: 'alex', text: firstMsg, id: 'init' }]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [chatDone, setChatDone] = useState(false);
+  const [companies, setCompanies] = useState<SimCompany[] | null>(null);
+  const [loadingCompanies, setLoadingCompanies] = useState(false);
+  const [pickedCompany, setPickedCompany] = useState<SimCompany | null>(null);
+  const [conversationContext, setConversationContext] = useState({ role: '', experienceLevel: '', domain: '' });
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [msgs, loading, companies, loadingCompanies]);
+
+  const fetchCompanies = async (allMsgs: ChatMsg[]) => {
+    setLoadingCompanies(true);
+    try {
+      const summary = allMsgs.filter(m => m.role === 'user').map(m => m.text).join(' | ');
+      const res = await fetch('/api/onboarding/companies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...conversationContext, conversationSummary: summary }),
+      });
+      const data = await res.json();
+      setCompanies(data.companies ?? []);
+    } catch {
+      setCompanies([]);
+    } finally {
+      setLoadingCompanies(false);
+    }
+  };
+
+  const sendMessage = async (overrideText?: string) => {
+    const text = (overrideText ?? input).trim();
+    if (!text || loading) return;
+    const newMsg: ChatMsg = { role: 'user', text, id: Date.now().toString() };
+    const updated = [...msgs, newMsg];
+    setMsgs(updated);
+    if (!overrideText) setInput('');
+    setLoading(true);
+    try {
+      const apiMessages = updated.map(m => ({
+        role: m.role === 'alex' ? 'assistant' as const : 'user' as const,
+        content: m.text,
+      }));
+      const res = await fetch('/api/onboarding/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: apiMessages, userName }),
+      });
+      const data = await res.json();
+      const reply = data.reply ?? "Let me find some options for you.";
+      const withReply = [...updated, { role: 'alex' as const, text: reply, id: Date.now().toString() }];
+      setMsgs(withReply);
+      if (data.complete) setChatDone(true);
+      if (data.generateCompanies) {
+        // Infer context from conversation for the companies API
+        const userTexts = updated.filter(m => m.role === 'user').map(m => m.text).join(' ');
+        setConversationContext({ role: 'Product Manager', experienceLevel: 'mid', domain: userTexts.slice(0, 200) });
+        fetchCompanies(withReply);
+      }
+    } catch {
+      setMsgs(prev => [...prev, { role: 'alex', text: "Let me pull up some options for you.", id: 'err' }]);
+      fetchCompanies(msgs);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const pickCompany = (company: SimCompany) => {
+    setPickedCompany(company);
+    setCompanies(null); // hide cards after pick
+    sendMessage(`I'd like to work at ${company.name}.`);
+  };
+
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={active ? '#ef4444' : T.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="9" y="2" width="6" height="12" rx="3" />
-      <path d="M5 10a7 7 0 0 0 14 0" />
-      <line x1="12" y1="19" x2="12" y2="22" />
-      <line x1="9" y1="22" x2="15" y2="22" />
-    </svg>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', width: '100%', maxWidth: 640, margin: '0 auto' }}>
+      {/* Top label */}
+      <div style={{ flexShrink: 0, padding: '10px 20px 12px', display: 'flex', justifyContent: 'center' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 14px', borderRadius: 99, background: T.surface, border: `1px solid ${T.border2}`, fontSize: 11, color: T.muted, letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
+          Onboarding — Alex, Coordinator
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', padding: '4px 20px 12px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {msgs.map(m => (
+          <div key={m.id} style={{ display: 'flex', gap: 10, flexDirection: m.role === 'alex' ? 'row' : 'row-reverse' as any, alignItems: 'flex-end' }}>
+            {m.role === 'alex' && (
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: T.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>A</div>
+            )}
+            <div style={{
+              maxWidth: '78%',
+              background: m.role === 'alex' ? 'rgba(255,255,255,0.05)' : `${T.primary}22`,
+              border: m.role === 'alex' ? '1px solid rgba(255,255,255,0.08)' : `1px solid ${T.primary}44`,
+              borderRadius: m.role === 'alex' ? '12px 12px 12px 4px' : '12px 12px 4px 12px',
+              padding: '10px 14px', fontSize: 13.5, color: T.text, lineHeight: 1.6,
+            }}>{m.text}</div>
+          </div>
+        ))}
+
+        {/* Loading indicator */}
+        {(loading || loadingCompanies) && (
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: T.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>A</div>
+            <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px 12px 12px 4px', padding: '12px 16px', display: 'flex', gap: 5 }}>
+              {[0, 1, 2].map(i => <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: T.muted, animation: `alexPulse 1.2s ${i * 0.2}s ease-in-out infinite` }} />)}
+            </div>
+          </div>
+        )}
+
+        {/* Company cards */}
+        {companies && companies.length > 0 && !pickedCompany && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0' }}>
+            <div style={{ fontSize: 11, color: 'rgba(175,163,159,0.5)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 2 }}>Choose your scenario</div>
+            {companies.map(c => (
+              <CompanyCard key={c.id} company={c} onSelect={pickCompany} selected={false} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Input bar — sticky to bottom, keyboard-safe */}
+      <div style={{ flexShrink: 0, borderTop: `1px solid ${T.border2}`, background: T.bg, padding: '12px 16px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))' }}>
+        {chatDone && pickedCompany ? (
+          <button
+            onClick={() => onComplete(pickedCompany)}
+            style={{ width: '100%', padding: '13px 20px', borderRadius: 10, background: T.primary, border: 'none', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+            Explore {pickedCompany.name} →
+          </button>
+        ) : companies && !pickedCompany ? (
+          <p style={{ fontSize: 12.5, color: T.muted, textAlign: 'center', margin: '4px 0' }}>Select a company above to continue</p>
+        ) : !chatDone ? (
+          <div style={{ display: 'flex', gap: 10 }}>
+            <textarea
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+              placeholder="Type your answer... (Enter to send)"
+              rows={2}
+              style={{ flex: 1, background: T.surface, border: `1px solid ${T.border2}`, borderRadius: 10, padding: '10px 14px', fontSize: 13.5, color: T.text, resize: 'none' as const, fontFamily: 'inherit', outline: 'none', lineHeight: 1.5 }}
+            />
+            <button onClick={() => sendMessage()} disabled={!input.trim() || loading}
+              style={{ padding: '0 20px', borderRadius: 10, background: T.primary, border: 'none', color: '#fff', fontSize: 13.5, fontWeight: 600, cursor: !input.trim() || loading ? 'not-allowed' : 'pointer', opacity: !input.trim() || loading ? 0.4 : 1, fontFamily: 'inherit' }}>
+              Send
+            </button>
+          </div>
+        ) : (
+          <p style={{ fontSize: 13, color: T.muted, textAlign: 'center', margin: '4px 0 0' }}>Setting up your scenario...</p>
+        )}
+        <div style={{ textAlign: 'center', marginTop: 10 }}>
+          <button onClick={onSkip} style={{ fontSize: 12, color: 'rgba(175,163,159,0.35)', background: 'none', border: 'none', cursor: 'pointer' }}>Skip prologue</button>
+        </div>
+      </div>
+
+      <style>{`@keyframes alexPulse { 0%,80%,100%{opacity:.3;transform:scale(.8)} 40%{opacity:1;transform:scale(1)} }`}</style>
+    </div>
   );
 }
 
 /* ── Main component ─────────────────────────────────────────────────────────── */
 export function OnboardingScreen() {
-  const { setScreen, setSimPreferences, user } = useAppStore();
+  const { setScreen, setOnboardingStep, onboardingStep, user, setUserProfile } = useAppStore();
+  const [visible, setVisible] = useState(true);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const TOTAL_STEPS = 3; // 0=chat, 1=team, 2=tutorial
 
-  const [messages,  setMessages]  = useState<Msg[]>([]);
-  const [input,     setInput]     = useState('');
-  const [isTyping,  setIsTyping]  = useState(false);
-  const [turn,      setTurn]      = useState(0);
-  const [prefs,     setPrefs]     = useState<Partial<SimPreferences>>({});
-  const [done,      setDone]      = useState(false);
-  const [listening, setListening] = useState(false);
-
-  const listRef        = useRef<HTMLDivElement>(null);
-  const inputRef       = useRef<HTMLInputElement>(null);
-  const recognitionRef = useRef<any>(null);
-
-  const scrollDown = () =>
-    setTimeout(() => listRef.current?.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 60);
-
-  const appendMsg = (role: 'assistant' | 'user', content: string) => {
-    setMessages(m => [...m, { id: mkId(), role, content }]);
-    scrollDown();
+  const advance = () => {
+    if (onboardingStep < TOTAL_STEPS - 1) {
+      setVisible(false);
+      setTimeout(() => { setOnboardingStep(onboardingStep + 1); setVisible(true); }, 200);
+    } else {
+      setScreen('assessment');
+    }
   };
 
-  /** Show typing dots → after `delay`ms append Nova bubble */
-  function novaSpeak(content: string, delay = 1100): Promise<void> {
-    setIsTyping(true);
-    scrollDown();
-    return new Promise(resolve =>
-      setTimeout(() => {
-        setIsTyping(false);
-        appendMsg('assistant', content);
-        setTimeout(() => inputRef.current?.focus(), 50);
-        resolve();
-      }, delay)
+  const handleChatComplete = (company: import('@/lib/types').SimCompany) => {
+    setUserProfile({ chosenCompany: company });
+    setScreen('company-overview');
+  };
+
+  const scene = onboardingStep > 0 ? SCENES[onboardingStep - 1] : null;
+  const userName = user?.name?.split(' ')[0] ?? 'there';
+
+  // Step 0: full-screen chat — keyboard floats on top (100dvh + sticky input)
+  if (onboardingStep === 0) {
+    return (
+      <div style={{ background: T.bg, height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* Progress dots */}
+        <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center', gap: 6, paddingTop: 20, paddingBottom: 4 }}>
+          {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
+            <div key={i} style={{ height: 4, width: i === onboardingStep ? 24 : 8, borderRadius: 99, background: i === onboardingStep ? T.primary : i < onboardingStep ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)', transition: 'all 0.25s ease' }} />
+          ))}
+        </div>
+        <OnboardingChat userName={userName} onComplete={handleChatComplete} onSkip={() => setScreen('assessment')} />
+      </div>
     );
   }
 
-  /* On mount: Nova opens conversation */
-  useEffect(() => {
-    const t = setTimeout(() => novaSpeak(getNovaMessage(0, {})), 500);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function handleSend() {
-    const text = input.trim();
-    if (!text || isTyping || done) return;
-    setInput('');
-    appendMsg('user', text);
-
-    const newPrefs  = extractPrefs(text, turn, prefs);
-    setPrefs(newPrefs);
-    const nextTurn  = turn + 1;
-    setTurn(nextTurn);
-
-    if (nextTurn <= 6) {
-      await novaSpeak(getNovaMessage(nextTurn, newPrefs));
-      if (nextTurn === 6) {
-        setSimPreferences({
-          displayName:     newPrefs.displayName     ?? user?.name ?? 'there',
-          experienceLevel: newPrefs.experienceLevel ?? '2–3 years',
-          preferredIndustry: newPrefs.preferredIndustry ?? 'Tech / SaaS',
-          role:            'Product Manager',
-          industry:        newPrefs.preferredIndustry ?? 'Tech / SaaS',
-          roleType:        newPrefs.roleType   ?? 'professional',
-          institution:     newPrefs.institution ?? '',
-          domain:          newPrefs.domain     ?? 'product management',
-        });
-        setDone(true);
-      }
-    }
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') { e.preventDefault(); handleSend(); }
-  }
-
-  function toggleMic() {
-    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRec) {
-      alert('Speech recognition is not supported in this browser. Try Chrome.');
-      return;
-    }
-    if (listening) { recognitionRef.current?.stop(); return; }
-    const rec = new SpeechRec();
-    rec.continuous      = false;
-    rec.interimResults  = true;
-    rec.onresult = (e: any) => {
-      const transcript = Array.from(e.results as any[]).map((r: any) => r[0].transcript).join('');
-      setInput(transcript);
-    };
-    rec.onend  = () => setListening(false);
-    rec.onerror = () => setListening(false);
-    rec.start();
-    recognitionRef.current = rec;
-    setListening(true);
-  }
-
-  const canSend = input.trim().length > 0 && !isTyping && !done;
-  const firstAIIdx = messages.findIndex(m => m.role === 'assistant');
-
   return (
-    <div style={{ position: 'fixed', inset: 0, background: T.bg, fontFamily: 'inherit', zIndex: 100, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ background: T.bg, minHeight: '100vh', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', top: '30%', left: '50%', transform: 'translate(-50%,-50%)', width: 600, height: 600, borderRadius: '50%', background: 'radial-gradient(circle,rgba(20,123,88,0.06) 0%,transparent 70%)', pointerEvents: 'none' }} />
+      <style>{`@keyframes fadeSlideIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
-      {/* Background image */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={OFFICE_IMG} alt="" aria-hidden style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.07, filter: 'blur(6px) saturate(0.4)', pointerEvents: 'none', userSelect: 'none', zIndex: 0 }} />
-
-      {/* Header */}
-      <div style={{ position: 'relative', zIndex: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 28px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.09em', textTransform: 'uppercase', color: T.dim }}>Nebula AI Onboarding</span>
-        <button
-          onClick={() => setScreen('assessment')}
-          style={{ background: 'none', border: 'none', color: T.dim, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit', transition: 'color 0.15s' }}
-          onMouseEnter={e => (e.currentTarget.style.color = T.muted)}
-          onMouseLeave={e => (e.currentTarget.style.color = T.dim)}
-        >Skip →</button>
+      {/* Progress dots */}
+      <div style={{ position: 'relative', zIndex: 10, display: 'flex', justifyContent: 'center', gap: 6, paddingTop: 40 }}>
+        {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
+          <div key={i} style={{ height: 4, width: i === onboardingStep ? 24 : 8, borderRadius: 99, background: i === onboardingStep ? T.primary : i < onboardingStep ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)', transition: 'all 0.25s ease' }} />
+        ))}
       </div>
 
-      {/* Message list — full width so scrollbar sits at screen right edge */}
-      <div
-        ref={listRef}
-        style={{ position: 'relative', zIndex: 2, flex: 1, overflowY: 'auto', width: '100%' }}
-      >
-        {/* Inner wrapper keeps content centered at 700px */}
-        <div style={{ maxWidth: 700, width: '100%', margin: '0 auto', padding: '28px 24px 16px', display: 'flex', flexDirection: 'column', gap: 16, boxSizing: 'border-box' }}>
-          {messages.map((m, i) =>
-            m.role === 'assistant'
-              ? <AIBubble   key={m.id} content={m.content} showAvatar={i === firstAIIdx} />
-              : <UserBubble key={m.id} content={m.content} />
-          )}
+      {/* Content */}
+      <div style={{ position: 'relative', zIndex: 10, flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: scene?.type === 'team' ? 'flex-start' : 'center', padding: scene?.type === 'team' ? '32px 24px 48px' : '48px 24px', opacity: visible ? 1 : 0, transition: 'opacity 0.2s ease' }}>
 
-          {isTyping && <TypingDots />}
-
-          {done && (
-            <div style={{ paddingLeft: 38, animation: 'novaFadeUp 0.4s ease' }}>
-              <button
-                onClick={() => setScreen('mission-briefing')}
-                style={{ padding: '12px 24px', borderRadius: 10, background: T.primary, border: 'none', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'opacity 0.15s' }}
-                onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
-                onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
-              >
-                Launch my simulation →
-              </button>
+        {scene && (
+          <div style={{ width: '100%', maxWidth: scene.type === 'team' ? 640 : 520 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 28 }}>
+              <div style={{ width: 56, height: 56, borderRadius: 16, background: T.surface, border: `1px solid ${T.border2}`, boxShadow: T.shadow1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>
+                {scene.type === 'team' ? '👥' : '⚡'}
+              </div>
             </div>
-          )}
+            <h1 style={{ fontSize: 28, fontWeight: 600, color: T.text, textAlign: 'center', marginBottom: scene.type === 'team' ? 6 : 20, letterSpacing: '-0.02em', lineHeight: 1.25 }}>{scene.title}</h1>
 
-          <div style={{ height: 4 }} />
-        </div>
-      </div>
+            {scene.type === 'team' && (
+              <p style={{ textAlign: 'center', fontSize: 14, color: T.muted, marginBottom: 28, lineHeight: 1.6 }}>
+                Click any card to learn who they are and how to work with them.
+              </p>
+            )}
 
-      {/* Input bar */}
-      {!done && (
-        <div style={{ position: 'relative', zIndex: 2, flexShrink: 0, padding: '12px 24px 28px', maxWidth: 700, width: '100%', alignSelf: 'center', boxSizing: 'border-box' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9999, padding: '10px 10px 10px 20px', transition: 'border-color 0.15s' }}>
-            <input
-              ref={inputRef}
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Your responses here"
-              disabled={isTyping || done}
-              style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: T.text, fontSize: 14, fontFamily: 'inherit' }}
-            />
-            {/* Mic button */}
-            <button
-              onClick={toggleMic}
-              title={listening ? 'Stop listening' : 'Speak your answer'}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, animation: listening ? 'micPulse 1.2s ease-in-out infinite' : 'none', transition: 'opacity 0.15s' }}
-            >
-              <MicIcon active={listening} />
-            </button>
-            {/* Send button */}
-            <button
-              onClick={handleSend}
-              disabled={!canSend}
-              style={{ width: 36, height: 36, borderRadius: '50%', background: canSend ? T.primary : 'rgba(255,255,255,0.1)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: canSend ? 'pointer' : 'default', transition: 'background 0.2s', flexShrink: 0 }}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" />
-              </svg>
-            </button>
+            {scene.type !== 'team' ? (
+              <p style={{ color: T.muted, textAlign: 'center', lineHeight: 1.75, fontSize: 15, whiteSpace: 'pre-line', maxWidth: 460, margin: '0 auto 44px' }}>{scene.body}</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 32 }}>
+                {CHARACTERS.map(char => {
+                  const isOpen = expandedId === char.id;
+                  return (
+                    <div key={char.id} style={{ background: isOpen ? `${char.color}08` : T.surface, border: `1px solid ${isOpen ? char.color + '30' : T.border}`, borderRadius: 12, boxShadow: isOpen ? `0 4px 20px ${char.color}18` : T.shadow1, overflow: 'hidden', transition: 'all 0.2s ease' }}>
+                      <button onClick={() => setExpandedId(prev => prev === char.id ? null : char.id)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' as const }}>
+                        <div style={{ position: 'relative', flexShrink: 0 }}>
+                          <Avatar name={char.name} color={char.color} size="md" />
+                          <div style={{ position: 'absolute', bottom: 0, right: 0, width: 9, height: 9, borderRadius: '50%', background: char.online ? '#22c55e' : '#6b7280', border: '1.5px solid #212121' }} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: T.text, marginBottom: 2 }}>{char.name}</div>
+                          <div style={{ fontSize: 12, color: T.muted }}>{char.title}</div>
+                        </div>
+                        {!isOpen && <div style={{ fontSize: 11, color: 'rgba(175,163,159,0.5)', maxWidth: 180, textAlign: 'right' as const, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden', flexShrink: 0 }}>{char.personality}</div>}
+                        <Chevron open={isOpen} />
+                      </button>
+                      {isOpen && <div style={{ padding: '0 16px 16px' }}><CharProfile char={char} /></div>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 10 }}>
+              <button onClick={() => setOnboardingStep(onboardingStep - 1)} style={{ padding: '10px 22px', borderRadius: 10, border: `1px solid ${T.border2}`, background: 'transparent', color: T.muted, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>← Back</button>
+              <button onClick={advance} style={{ padding: '10px 28px', borderRadius: 10, background: T.primary, border: 'none', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>{scene.cta}</button>
+            </div>
           </div>
-        </div>
-      )}
-
-      <style>{`
-        @keyframes novaBounce { 0%,80%,100%{transform:translateY(0);opacity:0.45} 40%{transform:translateY(-6px);opacity:1} }
-        @keyframes novaFadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes micPulse   { 0%,100%{opacity:1} 50%{opacity:0.4} }
-        input::placeholder { color: rgba(175,163,159,0.35); }
-      `}</style>
+        )}
+      </div>
     </div>
   );
 }

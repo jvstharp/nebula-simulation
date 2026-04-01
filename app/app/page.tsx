@@ -1,6 +1,8 @@
 "use client";
 export const dynamic = 'force-dynamic';
+import { useEffect } from "react";
 import { useAppStore } from "@/lib/store";
+import { supabase } from "@/lib/supabase";
 import { LoginScreen } from "@/components/screens/login-screen";
 import { OnboardingScreen } from "@/components/screens/onboarding-screen";
 import { AssessmentScreen } from "@/components/screens/assessment-screen";
@@ -18,6 +20,48 @@ import { PrologueScreen } from "@/components/screens/prologue-screen";
 import { BoardMeetingScreen } from "@/components/screens/board-meeting-screen";
 import { ControlPanelPopover } from "@/components/screens/control-panel-screen";
 import { ChaosOverlay } from "@/components/screens/chaos-overlay";
+import { CompanyOverviewScreen } from "@/components/screens/company-overview-screen";
+
+/* ── Session guard — reconciles localStorage state with live Supabase session ── */
+function SessionGuard() {
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        const store = useAppStore.getState();
+
+        if (event === 'INITIAL_SESSION') {
+          if (!session && store.user) {
+            store.setUser(null);
+            store.setScreen('login');
+          } else if (session && !store.user) {
+            const { data: profile } = await supabase
+              .from('users')
+              .select('name, credits, avatar')
+              .eq('id', session.user.id)
+              .single();
+            store.setUser({
+              id: session.user.id,
+              name: profile?.name ?? session.user.email?.split('@')[0] ?? 'User',
+              email: session.user.email ?? '',
+              credits: profile?.credits ?? 10,
+              avatar: profile?.avatar ?? undefined,
+            });
+          }
+          return;
+        }
+
+        if (!session && store.user) {
+          store.setUser(null);
+          store.setScreen('login');
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return null;
+}
 
 /* ── Trust delta toast ─────────────────────────────────────────────────────── */
 function TrustToast() {
@@ -52,6 +96,39 @@ function TrustToast() {
   );
 }
 
+/* ── Constraint unlock toasts ─────────────────────────────────────────────── */
+function ConstraintToasts() {
+  const { constraintToasts, dismissConstraintToast } = useAppStore();
+  if (!constraintToasts.length) return null;
+  return (
+    <div style={{ position: 'fixed', top: 20, right: 24, zIndex: 2600, display: 'flex', flexDirection: 'column', gap: 8, pointerEvents: 'none' }}>
+      {constraintToasts.map((t, idx) => (
+        <div key={t.id} style={{
+          background: 'rgba(12,12,18,0.97)',
+          border: '1px solid rgba(20,123,88,0.5)',
+          borderRadius: 12, padding: '10px 14px',
+          display: 'flex', alignItems: 'flex-start', gap: 10,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.55), 0 0 20px rgba(20,123,88,0.12)',
+          backdropFilter: 'blur(14px)',
+          animation: 'slideInRight 0.25s ease',
+          maxWidth: 280,
+          marginTop: idx === 0 ? 0 : 0,
+          pointerEvents: 'all',
+        }}>
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(20,123,88,0.15)', border: '1px solid rgba(20,123,88,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0 }}>🔓</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: '#147b58', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 2 }}>Constraint Unlocked</div>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: 'rgba(255,255,255,0.9)', marginBottom: 1 }}>{t.label}</div>
+            <div style={{ fontSize: 11, color: 'rgba(175,163,159,0.7)' }}>via {t.characterName}</div>
+          </div>
+          <button onClick={() => dismissConstraintToast(t.id)} style={{ background: 'none', border: 'none', color: 'rgba(175,163,159,0.4)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
+        </div>
+      ))}
+      <style>{`@keyframes slideInRight{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}`}</style>
+    </div>
+  );
+}
+
 const APP_SCREENS = new Set(['browser', 'vault', 'discovery', 'profile']);
 
 export default function Home() {
@@ -60,14 +137,16 @@ export default function Home() {
 
   return (
     <>
+      <SessionGuard />
       {screen === 'login'      && <LoginScreen />}
       {screen === 'register'   && <LoginScreen />}
-      {screen === 'onboarding'       && <OnboardingScreen />}
-      {screen === 'mission-briefing' && <MissionBriefingScreen />}
-      {screen === 'assessment'       && <AssessmentScreen />}
-      {screen === 'office-intro'     && <OfficeIntroScreen />}
-      {screen === 'prologue'         && <PrologueScreen />}
-      {screen === 'board-meeting'    && <BoardMeetingScreen />}
+      {screen === 'onboarding'        && <OnboardingScreen />}
+      {screen === 'company-overview'  && <CompanyOverviewScreen />}
+      {screen === 'mission-briefing'  && <MissionBriefingScreen />}
+      {screen === 'assessment'        && <AssessmentScreen />}
+      {screen === 'office-intro'      && <OfficeIntroScreen />}
+      {screen === 'prologue'          && <PrologueScreen />}
+      {screen === 'board-meeting'     && <BoardMeetingScreen />}
       {/* Desktop is always the background when in desktop or app mode */}
       {(screen === 'desktop' || isApp) && <DesktopScreen />}
       {screen === 'dashboard'  && <DashboardScreen />}
@@ -81,6 +160,7 @@ export default function Home() {
       <ControlPanelPopover />
       <ChaosOverlay />
       <TrustToast />
+      <ConstraintToasts />
     </>
   );
 }

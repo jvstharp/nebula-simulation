@@ -1,4 +1,4 @@
-import type { Character, KanbanColumn, Message, SessionState } from './types';
+import type { Character, KanbanColumn, Message, SessionState, SimCompany } from './types';
 
 export type TriggerType =
   | 'message_reply'
@@ -22,6 +22,12 @@ const COL_NAMES: Record<string, string> = {
   done: 'Done',
 };
 
+export interface CharacterReplyResult {
+  reply: string | null;
+  // null means the API call failed or the response could not be parsed — use fallback
+  trustDelta: number | null;
+}
+
 export async function generateCharacterReply(
   characterId: string,
   triggerType: TriggerType,
@@ -31,8 +37,9 @@ export async function generateCharacterReply(
     recentMessages: Message[];
     session: SessionState;
     kanbanColumns: KanbanColumn[];
+    companyContext?: SimCompany | null;
   }
-): Promise<string | null> {
+): Promise<CharacterReplyResult> {
   const assigneeInitial = ASSIGNEE_INITIAL[characterId];
 
   const myCards = state.kanbanColumns.flatMap(col =>
@@ -64,6 +71,7 @@ export async function generateCharacterReply(
         triggerType,
         triggerBody,
         recentMessages: recent,
+        companyContext: state.companyContext ?? null,
         characterState: {
           name: state.character.name,
           title: state.character.title,
@@ -87,10 +95,13 @@ export async function generateCharacterReply(
       }),
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) return { reply: null, trustDelta: null };
     const data = await res.json();
-    return data.reply ?? null;
+    return {
+      reply: data.reply ?? null,
+      trustDelta: typeof data.trustDelta === 'number' ? data.trustDelta : null,
+    };
   } catch {
-    return null;
+    return { reply: null, trustDelta: null };
   }
 }

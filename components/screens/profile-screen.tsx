@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAppStore } from "@/lib/store";
 import { AppWindow } from "@/components/layout/app-window";
 import { RelationshipWeb } from "@/components/simulation/relationship-web";
@@ -49,11 +49,27 @@ function SectionHdr({ title, action, onAction }: { title: string; action?: strin
 
 /* ── Types ───────────────────────────────────────────────────────────────────── */
 interface ProfileData {
-  profile: { id: string; name: string; email: string; createdAt: string };
+  profile: {
+    id: string; name: string; email: string; createdAt: string;
+    avatar?: string; role?: string; experienceLevel?: string; industry?: string; bio?: string;
+  };
   sessions: { id: string; scenarioId: string; status: string; elapsedSeconds: number; createdAt: string; compositeScore: number | null; portfolio: { id: string; status: string; verificationId: string; scenarioName: string } | null }[];
   avgScores: { stakeholderMgmt: number; communication: number; strategicThinking: number; conflictResolution: number; prioritisation: number; executionSpeed: number } | null;
   badges: { id: string; label: string; icon: string; color: string; earned: boolean; desc: string }[];
 }
+
+const EXP_LEVELS = [
+  { value: 'junior', label: 'Junior · 0–2 years' },
+  { value: 'mid',    label: 'Mid · 3–5 years' },
+  { value: 'senior', label: 'Senior · 6+ years' },
+];
+
+const inputStyle: React.CSSProperties = {
+  width: '100%', background: 'rgba(255,255,255,0.05)',
+  border: '1px solid rgba(255,255,255,0.12)', borderRadius: 7,
+  padding: '7px 10px', fontSize: 13, color: '#f0f0f3',
+  outline: 'none', fontFamily: 'inherit',
+};
 
 const SKILL_COLOR: Record<string, string> = {
   communication:    '#49a5de',
@@ -123,10 +139,19 @@ const NAV_ITEMS = ['Overview', 'Trust Network', 'Badges', 'Certificates', 'Recor
 
 /* ── Profile Screen ─────────────────────────────────────────────────────────── */
 export function ProfileScreen() {
-  const { user, setScreen } = useAppStore();
+  const { user, setUser, setUserProfile, userProfile, setScreen } = useAppStore();
   const [activeNav, setActiveNav] = useState('Overview');
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
+
+  // Edit mode state
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({ name: '', role: '', experienceLevel: '', industry: '', bio: '' });
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetch('/api/user/profile')
@@ -137,6 +162,81 @@ export function ProfileScreen() {
   }, []);
 
   const displayName = user?.name ?? profileData?.profile?.name ?? 'PM';
+  const displayRole = userProfile?.role || profileData?.profile?.role || '';
+  const displayExp  = userProfile?.experienceLevel || profileData?.profile?.experienceLevel || '';
+  const displayIndustry = profileData?.profile?.industry || '';
+  const displayBio  = profileData?.profile?.bio || '';
+
+  const expLabel = (v: string) => EXP_LEVELS.find(e => e.value === v)?.label ?? v;
+
+  const handleEditStart = () => {
+    setDraft({
+      name: displayName,
+      role: displayRole,
+      experienceLevel: displayExp,
+      industry: displayIndustry,
+      bio: displayBio,
+    });
+    setSaveError(null);
+    setEditing(true);
+  };
+
+  const handleCancel = () => {
+    setEditing(false);
+    setSaveError(null);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const res = await fetch('/api/user/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(draft),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error ?? 'Save failed');
+      }
+      // Update store
+      if (user) setUser({ ...user, name: draft.name });
+      setUserProfile({
+        role: draft.role,
+        experienceLevel: draft.experienceLevel as 'junior' | 'mid' | 'senior',
+      });
+      // Update local profileData so display refreshes without a re-fetch
+      setProfileData(prev => prev ? {
+        ...prev,
+        profile: { ...prev.profile, name: draft.name, role: draft.role, experienceLevel: draft.experienceLevel, industry: draft.industry, bio: draft.bio },
+      } : prev);
+      setEditing(false);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAvatarUpload = async (file: File) => {
+    setAvatarUploading(true);
+    setAvatarError(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/user/avatar', { method: 'POST', body: fd });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error ?? 'Upload failed');
+      }
+      const { url } = await res.json();
+      if (user) setUser({ ...user, avatar: url });
+    } catch (err) {
+      setAvatarError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
 
   // Derive display data from real API or fall back to empty state
   const skillScores = profileData?.avgScores
@@ -192,6 +292,25 @@ export function ProfileScreen() {
 
           {/* ── Action strip ── */}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginBottom: 16 }}>
+            {!editing && (
+              <button
+                onClick={handleEditStart}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(20,123,88,0.3)',
+                  background: 'rgba(20,123,88,0.08)', color: '#34d399',
+                  fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+                  transition: 'background 120ms',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(20,123,88,0.14)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(20,123,88,0.08)'; }}
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
+                  <path d="M8.5 1.5l2 2-6 6H2.5v-2l6-6z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" fill="none" />
+                </svg>
+                Edit Profile
+              </button>
+            )}
             <button
               onClick={() => setScreen('desktop')}
               style={{
@@ -246,26 +365,79 @@ export function ProfileScreen() {
               textAlign: 'center', gap: 0,
             }}>
               {/* Avatar */}
-              <div style={{
-                width: 120, height: 120, borderRadius: '50%',
-                background: 'linear-gradient(145deg, #c97b50, #7b3a1e)',
-                border: '3px solid rgba(20,123,88,0.35)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 0 28px rgba(20,123,88,0.20)',
-                marginBottom: 18, flexShrink: 0,
-              }}>
-                <svg width="76" height="76" viewBox="0 0 46 46" fill="none">
-                  <ellipse cx="23" cy="18" rx="9"  ry="10" fill="rgba(255,255,255,0.85)" />
-                  <ellipse cx="23" cy="40" rx="15" ry="11" fill="rgba(255,255,255,0.85)" />
-                  <ellipse cx="23" cy="12" rx="10" ry="7"  fill="#2a1a0e" />
-                  <ellipse cx="12" cy="19" rx="2.8" ry="8" fill="#2a1a0e" />
-                  <ellipse cx="34" cy="19" rx="2.8" ry="8" fill="#2a1a0e" />
-                </svg>
+              <div
+                onClick={() => editing && fileInputRef.current?.click()}
+                style={{
+                  width: 120, height: 120, borderRadius: '50%',
+                  background: 'linear-gradient(145deg, #c97b50, #7b3a1e)',
+                  border: `3px solid ${editing ? 'rgba(20,123,88,0.6)' : 'rgba(20,123,88,0.35)'}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 0 28px rgba(20,123,88,0.20)',
+                  marginBottom: 18, flexShrink: 0, overflow: 'hidden', position: 'relative',
+                  cursor: editing ? 'pointer' : 'default',
+                }}
+              >
+                {user?.avatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={user.avatar} alt={displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <svg width="76" height="76" viewBox="0 0 46 46" fill="none">
+                    <ellipse cx="23" cy="18" rx="9"  ry="10" fill="rgba(255,255,255,0.85)" />
+                    <ellipse cx="23" cy="40" rx="15" ry="11" fill="rgba(255,255,255,0.85)" />
+                    <ellipse cx="23" cy="12" rx="10" ry="7"  fill="#2a1a0e" />
+                    <ellipse cx="12" cy="19" rx="2.8" ry="8" fill="#2a1a0e" />
+                    <ellipse cx="34" cy="19" rx="2.8" ry="8" fill="#2a1a0e" />
+                  </svg>
+                )}
+                {/* Upload overlay in edit mode */}
+                {editing && (
+                  <div style={{
+                    position: 'absolute', inset: 0, borderRadius: '50%',
+                    background: 'rgba(0,0,0,0.55)',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  }}>
+                    {avatarUploading ? (
+                      <div style={{ width: 20, height: 20, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#34d399', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                    ) : (
+                      <>
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                          <path d="M10 13V7M7 10l3-3 3 3" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                          <rect x="2" y="4" width="16" height="12" rx="2" stroke="white" strokeWidth="1.2" fill="none" />
+                          <circle cx="14" cy="7" r="1.2" fill="white" />
+                        </svg>
+                        <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.8)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Change</span>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
+              {avatarError && (
+                <div style={{ fontSize: 10.5, color: '#ef4444', marginBottom: 6, textAlign: 'center', maxWidth: 160 }}>{avatarError}</div>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file) handleAvatarUpload(file);
+                  e.target.value = '';
+                }}
+              />
               {/* Name */}
-              <div style={{ fontSize: 20, fontWeight: 800, color: '#f0f0f3', marginBottom: 8, letterSpacing: '-0.02em' }}>
-                {displayName}
-              </div>
+              {editing ? (
+                <input
+                  value={draft.name}
+                  onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
+                  style={{ ...inputStyle, textAlign: 'center', fontSize: 16, fontWeight: 700, marginBottom: 8 }}
+                  placeholder="Display name"
+                />
+              ) : (
+                <div style={{ fontSize: 20, fontWeight: 800, color: '#f0f0f3', marginBottom: 8, letterSpacing: '-0.02em' }}>
+                  {displayName}
+                </div>
+              )}
               {/* Premium badge */}
               <span style={{
                 fontSize: 11.5, fontWeight: 600, color: '#000000',
@@ -306,27 +478,53 @@ export function ProfileScreen() {
                 {/* Row 1 */}
                 <div>
                   <div style={{ fontSize: 10.5, color: 'rgba(240,240,243,0.38)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4, fontWeight: 600 }}>My Role</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#f0f0f3' }}>Senior Product Manager</div>
+                  {editing ? (
+                    <input value={draft.role} onChange={e => setDraft(d => ({ ...d, role: e.target.value }))}
+                      style={inputStyle} placeholder="e.g. Senior Product Manager" />
+                  ) : (
+                    <div style={{ fontSize: 13, fontWeight: 600, color: displayRole ? '#f0f0f3' : 'rgba(240,240,243,0.28)' }}>
+                      {displayRole || 'Add your role'}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <div style={{ fontSize: 10.5, color: 'rgba(240,240,243,0.38)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4, fontWeight: 600 }}>My Experience Level</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#f0f0f3' }}>Senior · 6+ years</div>
+                  {editing ? (
+                    <select value={draft.experienceLevel} onChange={e => setDraft(d => ({ ...d, experienceLevel: e.target.value }))}
+                      style={{ ...inputStyle, cursor: 'pointer' }}>
+                      <option value="">Select level</option>
+                      {EXP_LEVELS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+                    </select>
+                  ) : (
+                    <div style={{ fontSize: 13, fontWeight: 600, color: displayExp ? '#f0f0f3' : 'rgba(240,240,243,0.28)' }}>
+                      {displayExp ? expLabel(displayExp) : 'Add experience level'}
+                    </div>
+                  )}
                 </div>
 
                 {/* Row 2 */}
                 <div>
                   <div style={{ fontSize: 10.5, color: 'rgba(240,240,243,0.38)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4, fontWeight: 600 }}>My Company</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#f0f0f3' }}>Nexus Technologies</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: userProfile?.chosenCompany?.name ? '#f0f0f3' : 'rgba(240,240,243,0.28)' }}>
+                    {userProfile?.chosenCompany?.name || 'Set during onboarding'}
+                  </div>
                 </div>
                 <div>
                   <div style={{ fontSize: 10.5, color: 'rgba(240,240,243,0.38)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4, fontWeight: 600 }}>My Industry</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#f0f0f3' }}>B2B SaaS</div>
+                  {editing ? (
+                    <input value={draft.industry} onChange={e => setDraft(d => ({ ...d, industry: e.target.value }))}
+                      style={inputStyle} placeholder="e.g. B2B SaaS" />
+                  ) : (
+                    <div style={{ fontSize: 13, fontWeight: 600, color: displayIndustry ? '#f0f0f3' : 'rgba(240,240,243,0.28)' }}>
+                      {displayIndustry || 'Add your industry'}
+                    </div>
+                  )}
                 </div>
 
                 {/* Row 3 */}
                 <div>
                   <div style={{ fontSize: 10.5, color: 'rgba(240,240,243,0.38)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4, fontWeight: 600 }}>My City or Region</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#f0f0f3' }}>San Francisco, CA</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(240,240,243,0.28)' }}>—</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 10.5, color: 'rgba(240,240,243,0.38)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4, fontWeight: 600 }}>Availability</div>
@@ -342,6 +540,29 @@ export function ProfileScreen() {
                 </div>
 
               </div>
+
+              {/* Save / Cancel row (edit mode only) */}
+              {editing && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  {saveError && <span style={{ fontSize: 11.5, color: '#ef4444', flex: 1 }}>{saveError}</span>}
+                  <button onClick={handleCancel} style={{
+                    padding: '7px 14px', borderRadius: 7, border: '1px solid rgba(255,255,255,0.1)',
+                    background: 'transparent', color: T.muted, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit',
+                  }}>
+                    Cancel
+                  </button>
+                  <button onClick={handleSave} disabled={saving} style={{
+                    padding: '7px 16px', borderRadius: 7, border: '1px solid rgba(20,123,88,0.4)',
+                    background: saving ? 'rgba(20,123,88,0.1)' : 'rgba(20,123,88,0.18)',
+                    color: saving ? T.muted : '#34d399',
+                    fontSize: 12.5, fontWeight: 600, cursor: saving ? 'default' : 'pointer', fontFamily: 'inherit',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}>
+                    {saving && <div style={{ width: 12, height: 12, border: '1.5px solid rgba(52,211,153,0.3)', borderTopColor: '#34d399', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />}
+                    {saving ? 'Saving…' : 'Save changes'}
+                  </button>
+                </div>
+              )}
 
               {/* Divider */}
               <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', marginBottom: 14 }} />
@@ -400,12 +621,19 @@ export function ProfileScreen() {
               {/* ── About ── */}
               <div>
                 <SectionHdr title="About" />
-                <p style={{ fontSize: 14, color: T.muted, lineHeight: 1.75, maxWidth: 640, margin: 0 }}>
-                  A results-driven product leader with 6+ years building B2B SaaS products at scale.
-                  Specialises in aligning cross-functional teams, navigating high-stakes stakeholder dynamics,
-                  and delivering complex roadmaps under pressure. Known for turning ambiguity into structured decisions.
-                  Currently in active simulation at Nexus Technologies, managing a contested Q3 platform roadmap post-Series C.
-                </p>
+                {editing ? (
+                  <textarea
+                    value={draft.bio}
+                    onChange={e => setDraft(d => ({ ...d, bio: e.target.value }))}
+                    rows={4}
+                    style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }}
+                    placeholder="Write a short bio about yourself, your background, and what you're working on…"
+                  />
+                ) : (
+                  <p style={{ fontSize: 14, color: displayBio ? T.muted : 'rgba(175,163,159,0.35)', lineHeight: 1.75, maxWidth: 640, margin: 0, fontStyle: displayBio ? 'normal' : 'italic' }}>
+                    {displayBio || 'No bio yet — click Edit Profile to add one.'}
+                  </p>
+                )}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
                   {['Product Strategy', 'Roadmapping', 'Stakeholder Management', 'Agile', 'B2B SaaS', 'Cross-functional Leadership'].map(tag => (
                     <span key={tag} style={{

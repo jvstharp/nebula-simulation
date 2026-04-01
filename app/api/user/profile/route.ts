@@ -2,6 +2,40 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { db } from '@/lib/db-server';
 
+export async function PATCH(req: Request) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const body = await req.json() as {
+      name?: string;
+      role?: string;
+      experienceLevel?: string;
+      industry?: string;
+      bio?: string;
+    };
+
+    const updated = await db.user.update({
+      where: { id: user.id },
+      data: {
+        ...(body.name        !== undefined && { name: body.name }),
+        ...(body.role        !== undefined && { domain: body.role }),
+        ...(body.experienceLevel !== undefined && { experienceLevel: body.experienceLevel }),
+        ...(body.industry    !== undefined && { preferredIndustry: body.industry }),
+        ...(body.bio         !== undefined && { additionalContext: body.bio }),
+        updatedAt: new Date(),
+      },
+      select: { id: true, name: true, email: true, avatar: true, credits: true, domain: true, experienceLevel: true, preferredIndustry: true, additionalContext: true },
+    });
+
+    return NextResponse.json({ profile: updated });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
 export async function GET() {
   try {
     const supabase = await createClient();
@@ -54,7 +88,12 @@ export async function GET() {
         id: profile.id,
         name: profile.name,
         email: profile.email,
+        avatar: profile.avatar,
         createdAt: profile.createdAt,
+        role: profile.domain ?? '',
+        experienceLevel: profile.experienceLevel ?? '',
+        industry: profile.preferredIndustry ?? '',
+        bio: profile.additionalContext ?? '',
       },
       sessions: profile.sessions.map(s => ({
         id: s.id,

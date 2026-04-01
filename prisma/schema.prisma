@@ -47,6 +47,7 @@ model SimSession {
   events    SessionEvent[]
   result    SessionResult?
   portfolio Portfolio?
+  documents SimDocument[]
 
   @@map("sim_sessions")
 }
@@ -121,4 +122,20 @@ model Portfolio {
   session SimSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@map("portfolios")
+}
+
+model SimDocument {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  sessionId   String   @db.Uuid @map("session_id")
+  characterId String   @map("character_id")
+  name        String
+  docType     String   @map("doc_type")
+  status      String   @default("generating")
+  content     Json?
+  createdAt   DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+
+  session SimSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("sim_documents")
 }

@@ -1,0 +1,153 @@
+/* ══════════════════════════════════════════════════════════════
+   NEBULA — Mobile Overrides
+   Breakpoint: max-width 767px (phones)
+   All desktop layout is unchanged above 768px.
+   ══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 767px) {
+
+  /* ── Base typography ────────────────────────────────────────── */
+  body { font-size: 15px; }
+
+  /* ── Hide desktop-only chrome ──────────────────────────────── */
+  .traffic-lights-group  { display: none !important; }
+  .resize-handle-overlay { display: none !important; }
+  .desktop-dock-wrap     { display: none !important; }
+  .desktop-status-bar    { display: none !important; }
+
+  /* ── Floating windows → full-screen sheets ─────────────────── */
+  .window {
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: none !important;
+  }
+
+  /* AppWindow: override fixed positioning to fill viewport */
+  .app-window-mobile {
+    position: fixed !important;
+    inset: 0 !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    border-radius: 0 !important;
+    transform: none !important;
+  }
+
+  /* ── Titlebar: shrink, hide drag cursor ─────────────────────── */
+  .window-titlebar {
+    height: 44px !important;
+    cursor: default !important;
+  }
+
+  /* ── Sidebar: hidden on mobile ──────────────────────────────── */
+  .sidebar { display: none !important; }
+
+  /* ── Mobile bottom nav bar ──────────────────────────────────── */
+  .mobile-nav-bar {
+    display: flex !important;
+  }
+
+  /* ── Bottom nav safe area + main content padding ────────────── */
+  .has-mobile-nav {
+    padding-bottom: calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* ── Cards & panels ─────────────────────────────────────────── */
+  .card-body { padding: 12px !important; }
+
+  /* ── Touch targets ──────────────────────────────────────────── */
+  .sidebar-item {
+    padding: 12px 20px !important;
+    min-height: 44px !important;
+  }
+
+  /* ── Drive grid: 3 columns ──────────────────────────────────── */
+  .drive-grid-mobile {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  /* ── Browser tab bar: horizontally scrollable ───────────────── */
+  .browser-tab-bar {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex-wrap: nowrap !important;
+    scrollbar-width: none !important;
+  }
+  .browser-tab-bar::-webkit-scrollbar { display: none !important; }
+
+  /* ── Kanban: horizontal scroll snap ────────────────────────── */
+  .kanban-board {
+    display: flex !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    scroll-snap-type: x mandatory !important;
+    -webkit-overflow-scrolling: touch !important;
+    gap: 8px !important;
+    padding-bottom: 8px !important;
+    scrollbar-width: none !important;
+  }
+  .kanban-board::-webkit-scrollbar { display: none !important; }
+  .kanban-column-mobile {
+    flex: 0 0 85vw !important;
+    min-width: 85vw !important;
+    scroll-snap-align: start !important;
+  }
+
+  /* ── Email panels ──────────────────────────────────────────────── */
+  /* Folder sidebar (Inbox/Sent/etc.) — permanently hidden on mobile */
+  .email-sidebar-panel { display: none !important; }
+
+  /* Thread list — fills full width; hidden when a thread is open */
+  .email-list-panel {
+    flex: 1 !important;
+    width: 100% !important;
+    border-right: none !important;
+  }
+  .email-list-panel.panel-hidden { display: none !important; }
+
+  /* Reading pane — fills full width; hidden when no thread is open */
+  .email-detail-panel { flex: 1 !important; width: 100% !important; }
+  .email-detail-panel.panel-hidden { display: none !important; }
+
+  /* ── Chat panels ──────────────────────────────────────────────── */
+  /* Sidebar (channels + DMs list) — visible by default; hidden when DM open */
+  .chat-sidebar-panel {
+    width: 100% !important;
+    flex: 1 !important;
+    border-right: none !important;
+  }
+  .chat-sidebar-panel.panel-hidden { display: none !important; }
+
+  /* DM / channel main pane — hidden by default; shown when DM open */
+  .chat-main-panel { display: none !important; }
+  .chat-main-panel.panel-visible { display: flex !important; flex: 1 !important; width: 100% !important; }
+
+  /* Mobile back button: shown only on mobile */
+  .mobile-back-btn { display: flex !important; }
+
+  /* ── Mission briefing: stack ────────────────────────────────── */
+  .mission-layout {
+    flex-direction: column !important;
+  }
+  .mission-photo-panel {
+    width: 100% !important;
+    height: 40vh !important;
+    flex-shrink: 0 !important;
+  }
+  .mission-content-panel {
+    width: 100% !important;
+    flex: 1 !important;
+    overflow-y: auto !important;
+  }
+
+  /* ── Assessment ─────────────────────────────────────────────── */
+  .assessment-question  { font-size: 17px !important; }
+  .assessment-textarea  { width: 100% !important; max-width: 100% !important; }
+  .assessment-submit    { width: 100% !important; height: 48px !important; }
+
+  /* ── FadeIn animation ───────────────────────────────────────── */
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+}
