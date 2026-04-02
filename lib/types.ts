@@ -19,7 +19,7 @@ export interface KanbanColumn {
 }
 
 export interface Character {
-  id: CharacterId;
+  id: string; // CharacterId for Nexus; any string slug for other companies
   name: string;
   title: string;
   avatar: string;
@@ -33,14 +33,15 @@ export interface Character {
 
 export interface Message {
   id: string;
-  from: CharacterId | 'user';
-  to: CharacterId | 'user';
+  from: string; // CharacterId | 'user' for Nexus; any character slug for other companies
+  to: string;
   channel: 'email' | 'chat';
   subject?: string;
   body: string;
   timestamp: Date;
   read: boolean;
 }
+
 
 export interface OKR {
   id: string;
@@ -181,6 +182,33 @@ export interface UserProfile {
   experienceLevel: 'junior' | 'mid' | 'senior';
   domain: string;
   chosenCompany: SimCompany | null;
+}
+
+export interface CompanyCatalogEntry {
+  company: SimCompany;
+  characters: Character[];
+  initialMessages: Message[];
+  initialOKRs: OKR[];
+  initialKanban: KanbanColumn[];
+  prologueMessages: { from: string; delay: number; text: string }[];
+  cascadeEvents: Array<{
+    id: string;
+    trigger: (session: { elapsedSeconds: number; lastContactedAt: Record<string, number>; firedCascades: string[] }) => boolean;
+    characterId: string;
+    channel: 'email' | 'chat';
+    subject?: string;
+    message: string;
+  }>;
+  characterSecrets: Record<string, { threshold: number; secretId: string; message: string }[]>;
+  cardReactionMap: Record<string, {
+    toInProgress: { high: string[]; mid: string[]; low: string[] };
+    toReview:     { high: string[]; mid: string[]; low: string[] };
+    toDone: { natural: string[]; earlyClose: string[]; low: string[] };
+    toBacklog: string[];
+  }>;
+  replyMap: Record<string, string[]>;
+  constraintPatterns: Record<string, Array<{ keywords: string[]; constraint: string }>>;
+  constraintLabels: Record<string, string>;
 }
 
 export type Screen = 'desktop' | 'login' | 'register' | 'onboarding' | 'assessment' | 'mission-briefing' | 'office-intro' | 'prologue' | 'board-meeting' | 'dashboard' | 'simulation' | 'replay' | 'progress' | 'admin' | 'discovery' | 'browser' | 'vault' | 'profile' | 'controlpanel' | 'company-overview';

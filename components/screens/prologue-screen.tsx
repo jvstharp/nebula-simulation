@@ -1,25 +1,25 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/lib/store';
-import { PROLOGUE_MESSAGES, CHARACTERS } from '@/lib/data';
 
 export function PrologueScreen() {
-  const { setScreen, startSession, setActiveBrowserTab } = useAppStore();
+  const { setScreen, startSession, setActiveBrowserTab, prologueMessages, characters } = useAppStore();
   const [visibleCount, setVisibleCount] = useState(0);
   const [showButton, setShowButton] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!prologueMessages.length) return;
     const timers: ReturnType<typeof setTimeout>[] = [];
 
-    PROLOGUE_MESSAGES.forEach((msg, i) => {
+    prologueMessages.forEach((msg, i) => {
       timers.push(setTimeout(() => {
         setVisibleCount(i + 1);
       }, msg.delay));
     });
 
     // Show enter button 2.5s after last message
-    const lastDelay = PROLOGUE_MESSAGES[PROLOGUE_MESSAGES.length - 1].delay + 2500;
+    const lastDelay = prologueMessages[prologueMessages.length - 1].delay + 2500;
     timers.push(setTimeout(() => setShowButton(true), lastDelay));
 
     // Auto-advance after 30s
@@ -27,7 +27,7 @@ export function PrologueScreen() {
 
     return () => timers.forEach(clearTimeout);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [prologueMessages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -39,8 +39,9 @@ export function PrologueScreen() {
     setScreen('browser');
   }
 
-  const totalDuration = PROLOGUE_MESSAGES[PROLOGUE_MESSAGES.length - 1].delay + 10500;
-  const progress = Math.min(1, (visibleCount / PROLOGUE_MESSAGES.length));
+  if (!prologueMessages.length) return null;
+
+  const progress = Math.min(1, (visibleCount / prologueMessages.length));
 
   return (
     <div style={{
@@ -75,8 +76,8 @@ export function PrologueScreen() {
         padding: '0 24px', display: 'flex', flexDirection: 'column', gap: 14,
         scrollbarWidth: 'none',
       }}>
-        {PROLOGUE_MESSAGES.slice(0, visibleCount).map((msg, i) => {
-          const char = CHARACTERS.find(c => c.id === msg.from);
+        {prologueMessages.slice(0, visibleCount).map((msg, i) => {
+          const char = characters.find(c => c.id === msg.from);
           if (!char) return null;
           return (
             <div
@@ -102,7 +103,7 @@ export function PrologueScreen() {
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 3 }}>
                   <span style={{ fontSize: 12, fontWeight: 600, color: char.color }}>{char.name}</span>
                   <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>
-                    {new Date(Date.now() - (PROLOGUE_MESSAGES[PROLOGUE_MESSAGES.length - 1].delay - msg.delay + 30000)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(Date.now() - (prologueMessages[prologueMessages.length - 1].delay - msg.delay + 30000)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
                 <div style={{

@@ -1,4 +1,4 @@
-import { Character, SessionState, Message, OKR, CharacterId, DifficultyLevel, KanbanColumn } from './types';
+import { Character, SessionState, Message, OKR, CharacterId, DifficultyLevel, KanbanColumn, CompanyCatalogEntry, SimCompany } from './types';
 
 export const USER_AVATAR = 'https://randomuser.me/api/portraits/men/75.jpg';
 
@@ -454,8 +454,8 @@ export const CHARACTER_SECRETS: Record<CharacterId, { threshold: number; secretI
 // ─── Cascade Events (fired when characters are ignored) ─────────────────────
 export interface CascadeEvent {
   id: string;
-  trigger: (session: { elapsedSeconds: number; lastContactedAt: Partial<Record<CharacterId, number>>; firedCascades: string[] }) => boolean;
-  characterId: CharacterId;
+  trigger: (session: { elapsedSeconds: number; lastContactedAt: Record<string, number>; firedCascades: string[] }) => boolean;
+  characterId: string;
   channel: 'email' | 'chat';
   subject?: string;
   message: string;
@@ -597,7 +597,7 @@ export const DIFFICULTY_CONFIG: Record<DifficultyLevel, {
 };
 
 // ─── Fly on the Wall Prologue Messages ───────────────────────────────────────
-export const PROLOGUE_MESSAGES: { from: CharacterId; delay: number; text: string }[] = [
+export const PROLOGUE_MESSAGES: { from: string; delay: number; text: string }[] = [
   { from: 'elena',  delay: 0,     text: "Good morning everyone. I'm bringing in a new PM to own the Q3 roadmap. They start today." },
   { from: 'sarah',  delay: 2800,  text: "Do they know about the SSO situation? There's quite a bit of context they'll need before touching anything." },
   { from: 'elena',  delay: 5500,  text: "I'll brief them. The important thing is we move fast. Board is Monday." },
@@ -611,7 +611,7 @@ export const PROLOGUE_MESSAGES: { from: CharacterId; delay: number; text: string
 ];
 
 // ─── Lateral Character Trust (for relationship web) ──────────────────────────
-export const LATERAL_TRUST: { from: CharacterId; to: CharacterId; trust: number; label: string }[] = [
+export const LATERAL_TRUST: { from: string; to: string; trust: number; label: string }[] = [
   { from: 'sarah',  to: 'marcus', trust: 0.72, label: 'collegial' },
   { from: 'tom',    to: 'elena',  trust: 0.81, label: 'aligned' },
   { from: 'sarah',  to: 'elena',  trust: 0.45, label: 'strained' },
@@ -921,5 +921,533 @@ export const CARD_REACTION_MAP: Record<CharacterId, {
       "Moving this back is a risk given the Monday deadline. I'll note it — but I'll need it back in active by Wednesday at the latest.",
       "Noted. Just don't lose track of it — this needs to be resolved before the board meeting.",
     ],
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CRESTLINE ADVISORY — "The Client Rescue"
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const CRESTLINE_COMPANY: SimCompany = {
+  id: 'crestline-advisory',
+  name: 'Crestline Advisory',
+  industry: 'Strategy Consulting',
+  size: '180 people, independent partnership',
+  tagline: 'Advising boards on the decisions that matter.',
+  challenge: "You've been parachuted in as the new Engagement Manager three months into a struggling transformation programme for Blackford Retail (£4.2M retainer). The original EM departed two weeks ago. The client's COO is losing confidence. Your final client board presentation is Friday. A competitor is pitching to replace the firm on Monday.",
+  why: 'Your background in strategy and stakeholder management makes you the right person to rescue a complex, politically charged engagement.',
+  videoKeyword: 'strategy consulting boardroom',
+};
+
+const CRESTLINE_CHARACTERS: Character[] = [
+  {
+    id: 'james',
+    name: 'James Okafor',
+    title: 'Managing Partner',
+    avatar: 'https://randomuser.me/api/portraits/men/41.jpg',
+    color: '#6366f1',
+    personality: 'Politically astute and decisive in public, deeply risk-averse underneath. Has built Crestline\'s reputation on discretion — he is more focused on how a failure lands than on preventing it. He will back you publicly if you move with confidence, but privately he hedges. Has not disclosed that another Crestline practice is advising Meridian Retail, Blackford\'s direct competitor. He considers it a separate practice matter. Legally, that view is debatable.',
+    visibleAgenda: 'Protect the Crestline brand and the Blackford relationship at all costs. Get to Friday\'s presentation without a client blowup. Manage upward to the partnership if things go sideways.',
+    trust: 0.58,
+    emotion: 'neutral',
+    online: true,
+  },
+  {
+    id: 'lucy',
+    name: 'Lucy Winters',
+    title: 'Senior Consultant',
+    avatar: 'https://randomuser.me/api/portraits/women/29.jpg',
+    color: '#ec4899',
+    personality: 'Exceptional analyst with a perfectionist streak that tips into avoidance under pressure. She found a critical error in the market sizing model three days ago — the TAM figure is inflated by approximately 40% due to double-counting indirect market participants in the Euromonitor data, compounded by using pre-COVID 2019 ONS baseline figures. She has been quietly trying to remodel rather than surface it because she is afraid of how it will land with James. Felix noted it in the appendix. She will share everything if asked directly and treated as a decision-making partner rather than an executor.',
+    visibleAgenda: 'Finalise and validate the analysis before Friday. She will not present something she knows is wrong. She needs someone to give her permission to raise the model issue directly.',
+    trust: 0.70,
+    emotion: 'neutral',
+    online: true,
+  },
+  {
+    id: 'raj',
+    name: 'Raj Mehta',
+    title: 'Client Partner',
+    avatar: 'https://randomuser.me/api/portraits/men/28.jpg',
+    color: '#f59e0b',
+    personality: 'Warm relationship manager who has kept Blackford positive through charm and optimistic framing for two years. Has been papering over the engagement\'s gaps rather than escalating. Critical omission: Diana called him directly yesterday and said she had already had a preliminary conversation with McKinsey and was "keeping her options open." He told her the new EM would be excellent. He has not told the team about the McKinsey call because he is hoping a strong week makes it irrelevant. He believes the relationship can be saved if the week goes well.',
+    visibleAgenda: 'Keep Diana positive through Friday. He cannot afford for the McKinsey conversation to surface before Friday — he wants to make it irrelevant with a strong delivery.',
+    trust: 0.65,
+    emotion: 'cooperative',
+    online: true,
+  },
+  {
+    id: 'diana',
+    name: 'Diana Strauss',
+    title: 'COO, Blackford Retail',
+    avatar: 'https://randomuser.me/api/portraits/women/52.jpg',
+    color: '#ef4444',
+    personality: 'Impatient, data-driven executive who has been burned by strategy consultants before. Has already told Raj she is in conversation with McKinsey. The fundamental misalignment: she does not want a 150-page strategy document — she wants Crestline to co-own and support implementation. That is exactly what McKinsey offered. Nobody from Crestline has asked her directly what she wants from the engagement. She will respond constructively if someone asks directly and presents a concrete implementation model. She has a specific concern: the TAM number in the current framework does not match her internal market research, but she has not raised it yet.',
+    visibleAgenda: 'Get something she can take to the Blackford board on Friday that demonstrates real strategic progress. She wants a vendor who is accountable for outcomes, not just recommendations. A commitment on post-delivery support would change the conversation entirely.',
+    trust: 0.45,
+    emotion: 'frustrated',
+    online: false,
+  },
+  {
+    id: 'felix',
+    name: 'Felix Chen',
+    title: 'Analyst',
+    avatar: 'https://randomuser.me/api/portraits/men/15.jpg',
+    color: '#10b981',
+    personality: 'Eager, sharp, and slightly intimidated by the seniority around him. Has done excellent original research: found ONS and Euromonitor primary data that invalidates the TAM assumption in the current model. He noted it in the appendix as "a point for review" rather than flagging it directly because it felt above his pay grade to challenge the model. He is waiting for someone to engage him seriously. He will share the full dataset the moment anyone asks him directly. He joined Crestline eight months ago from a research role and is still finding his voice — he wants to contribute but does not know how to raise the issue without undermining Lucy.',
+    visibleAgenda: 'Do excellent work and be taken seriously. He wants to flag the market data finding but needs explicit permission or a direct question to do it.',
+    trust: 0.55,
+    emotion: 'neutral',
+    online: true,
+  },
+];
+
+const CRESTLINE_INITIAL_OKRS: OKR[] = [
+  { id: 'c_okr1', title: 'Align the team on a single final narrative before Thursday 5pm', status: 'in_progress', progress: 20 },
+  { id: 'c_okr2', title: 'Validate the market sizing with current data before the client presentation', status: 'pending', progress: 0 },
+  { id: 'c_okr3', title: 'Understand what Blackford actually wants from this engagement (deliverable vs. implementation)', status: 'pending', progress: 0 },
+  { id: 'c_okr4', title: 'Stress-test the recommendation against McKinsey\'s likely counter-frame', status: 'pending', progress: 0 },
+  { id: 'c_okr5', title: 'Secure James\'s active endorsement before the client board presentation', status: 'pending', progress: 0 },
+];
+
+const CRESTLINE_INITIAL_MESSAGES: Message[] = [
+  {
+    id: 'cm-001',
+    from: 'james',
+    to: 'user',
+    channel: 'email',
+    subject: 'Your briefing — take command immediately',
+    body: `Welcome aboard. The situation is straightforward: we have a client board presentation on Friday, a team that has been under-managed for three weeks, and a competitor circling. Your job is to own this engagement from today and deliver something Blackford can take to their board.
+
+The team is competent — Lucy's analysis is strong in places and Felix is diligent. Raj has the relationship. What this engagement has lacked is leadership from the EM seat. That is what you are here to provide.
+
+A few expectations: I want a daily status from you. I want to be the first person to hear about any material problems — not the last. And I want to walk into Friday's presentation with confidence, not surprises.
+
+The client's COO is Diana Strauss. She is direct and impatient. Manage her proactively. Do not let her come to us — we go to her.
+
+Get up to speed with the team today. I am available if you need me.
+
+— James`,
+    timestamp: new Date(Date.now() - 5400000),
+    read: false,
+  },
+  {
+    id: 'cm-002',
+    from: 'lucy',
+    to: 'user',
+    channel: 'email',
+    subject: 'Engagement status — where the analysis stands',
+    body: `Hi — I wanted to get you up to speed before we connect.
+
+The core strategic framework is in good shape. We have mapped the three transformation pathways, built the financial model for each scenario, and done the stakeholder analysis. The executive summary is mostly drafted but needs a final pass before it goes to the client.
+
+There is one area I am still working through: the market sizing workbook. There are some data source questions I am trying to resolve before Friday. Felix flagged something in the appendix that I am in the process of validating. I will come back to you on this once I have a clearer view — I do not want to raise it until I understand the impact fully.
+
+Everything else is on track. I will send you the current deck and model by end of day. Let me know when you want to walk through it.
+
+— Lucy`,
+    timestamp: new Date(Date.now() - 4200000),
+    read: false,
+  },
+  {
+    id: 'cm-003',
+    from: 'raj',
+    to: 'user',
+    channel: 'email',
+    subject: 'Welcome — a few things on the client side',
+    body: `Really glad you are here. The team will benefit from strong EM leadership and I think this week can go well.
+
+On the client side: Diana Strauss is engaged and focused on Friday. She has been patient with us through the transition and I think she appreciates that we moved quickly to put someone senior in the seat. I would recommend reaching out to her today — even a brief note to introduce yourself and confirm the Friday timeline will help.
+
+The relationship is in a good place. Diana and I have a strong working rapport from two years on this account. I will be on all client touchpoints with you this week, so we can align on messaging before anything goes to her.
+
+Let's find 30 minutes today to sync. I can give you the full context on where things stand with Blackford.
+
+— Raj`,
+    timestamp: new Date(Date.now() - 3000000),
+    read: false,
+  },
+  {
+    id: 'cm-004',
+    from: 'diana',
+    to: 'user',
+    channel: 'email',
+    subject: 'Friday presentation — I need to be direct with you',
+    body: `I understand you are the new Engagement Manager. I appreciate Crestline moving quickly on the transition.
+
+I want to be honest about where I stand: three months into this engagement, I expected to have a recommendation I could defend to my board. What I have instead is a framework and a set of hypotheses. That is not what I contracted for.
+
+The previous EM gave me confidence that we were building toward something concrete. The last three weeks have been unclear.
+
+I need two things from Friday: a recommendation I can act on — not a set of options with caveats — and clarity on what happens after Friday. What does Crestline's role look like in the implementation phase? That is not something anyone has raised with me and it is something my board will ask.
+
+I look forward to your introduction. Please come to me directly if there are any issues this week — I would rather hear about problems early than be surprised.
+
+— Diana Strauss
+COO, Blackford Retail`,
+    timestamp: new Date(Date.now() - 1800000),
+    read: false,
+  },
+  {
+    id: 'cm-005',
+    from: 'felix',
+    to: 'user',
+    channel: 'email',
+    subject: 'A few things I wanted to flag before we connect',
+    body: `Hi — I am Felix Chen, Analyst on the Blackford engagement. I wanted to reach out before our team intro.
+
+I have been doing the market research and data modelling alongside Lucy. There is one thing I flagged in the appendix of the market sizing workbook — a note on the data source for the TAM calculation. I used current ONS and Euromonitor primary data alongside what was in the model, and the numbers do not fully reconcile. I added it as a footnote because I was not sure how to raise it through the team, but I think it might be worth a conversation before Friday.
+
+I do not want to overstep — Lucy is the lead on the analysis. But if it would be useful, I have the full dataset and can walk you through what I found.
+
+I am also happy to help with anything else this week — research, modelling, prep. Just say the word.
+
+— Felix`,
+    timestamp: new Date(Date.now() - 1200000),
+    read: false,
+  },
+];
+
+const CRESTLINE_INITIAL_KANBAN: KanbanColumn[] = [
+  {
+    id: 'backlog', label: 'Backlog', color: '#6b7280',
+    cards: [
+      { id: 'ck1', title: 'Validate market sizing with ONS + Euromonitor primary data', tag: 'Research', assignee: 'F', priority: 'high', notes: '', linkedOkr: 'c_okr2' },
+      { id: 'ck2', title: 'Clarify Blackford\'s implementation expectations', tag: 'Client', assignee: 'Y', priority: 'high', notes: '', linkedOkr: 'c_okr3' },
+      { id: 'ck3', title: 'Competitive counter-brief — McKinsey likely frame', tag: 'Strategy', assignee: 'L', priority: 'med', notes: '', linkedOkr: 'c_okr4' },
+      { id: 'ck4', title: 'Draft implementation support offer for Blackford', tag: 'Client', assignee: 'Y', priority: 'high', notes: '', linkedOkr: 'c_okr3' },
+    ],
+  },
+  {
+    id: 'inprogress', label: 'In Progress', color: '#49a5de',
+    cards: [
+      { id: 'ck5', title: 'Final narrative alignment — team workshop', tag: 'Strategy', assignee: 'L', priority: 'high', notes: '', linkedOkr: 'c_okr1' },
+      { id: 'ck6', title: 'Executive summary — final draft', tag: 'Strategy', assignee: 'Y', priority: 'high', notes: '', linkedOkr: 'c_okr1' },
+      { id: 'ck7', title: 'James pre-brief — secure partnership backing', tag: 'Internal', assignee: 'Y', priority: 'high', notes: '', linkedOkr: 'c_okr5' },
+    ],
+  },
+  {
+    id: 'review', label: 'Review', color: '#deaf49',
+    cards: [
+      { id: 'ck8', title: 'Strategic options framework v3', tag: 'Strategy', assignee: 'L', priority: 'high', notes: '', linkedOkr: 'c_okr1' },
+      { id: 'ck9', title: 'Market sizing workbook', tag: 'Research', assignee: 'F', priority: 'high', notes: '', linkedOkr: 'c_okr2' },
+    ],
+  },
+  {
+    id: 'done', label: 'Done', color: '#02ba67',
+    cards: [
+      { id: 'ck10', title: 'Client stakeholder interview schedule', tag: 'Client', assignee: 'R', priority: 'med', notes: '' },
+      { id: 'ck11', title: 'Initial engagement scoping document', tag: 'Process', assignee: 'Y', priority: 'low', notes: '' },
+    ],
+  },
+];
+
+const CRESTLINE_PROLOGUE: { from: string; delay: number; text: string }[] = [
+  { from: 'felix', delay: 0,     text: 'Hey — the ONS data I flagged in the appendix. Did anyone look at those figures? The 2019 baseline changes the TAM number quite materially.' },
+  { from: 'lucy',  delay: 3200,  text: 'I saw it. I am working through the implications. Do not raise it in the team meeting today — I want to understand the full impact before we say anything.' },
+  { from: 'raj',   delay: 6500,  text: 'Morning James. Diana check-in went okay yesterday. She is antsy but I told her the new EM arrives today and will hit the ground running.' },
+  { from: 'james', delay: 9200,  text: 'Good. Brief them thoroughly. I need them fully across the engagement by end of business. We cannot afford another slow week.' },
+  { from: 'felix', delay: 12800, text: 'Should I pull together a data summary? I have everything ready to go if someone wants to review it.' },
+  { from: 'lucy',  delay: 15500, text: 'Hold off for now, Felix. Let the new EM find their feet first.' },
+  { from: 'raj',   delay: 18200, text: 'Diana asked again about implementation support. I said we would address it in Friday\'s presentation.' },
+  { from: 'james', delay: 21000, text: '...' },
+];
+
+const CRESTLINE_CASCADE_EVENTS = [
+  {
+    id: 'lucy_model_flag',
+    trigger: (s: { elapsedSeconds: number; lastContactedAt: Record<string, number>; firedCascades: string[] }) =>
+      !s.firedCascades.includes('lucy_model_flag') &&
+      s.elapsedSeconds > 90 &&
+      (s.elapsedSeconds - (s.lastContactedAt['lucy'] ?? 0)) > 240,
+    characterId: 'lucy',
+    channel: 'email' as const,
+    subject: 'RE: Market sizing — I need 10 minutes before we finalise',
+    message: 'Before we lock the deck I need 10 minutes with you on the market sizing. There is a data question I have been trying to resolve quietly that I think we need to address before Friday. I did not want to raise it in a group setting — can we find time this afternoon?',
+  },
+  {
+    id: 'raj_diana_pressure',
+    trigger: (s: { elapsedSeconds: number; lastContactedAt: Record<string, number>; firedCascades: string[] }) =>
+      !s.firedCascades.includes('raj_diana_pressure') &&
+      s.elapsedSeconds > 360 &&
+      !(s.lastContactedAt['diana']),
+    characterId: 'raj',
+    channel: 'email' as const,
+    subject: 'FWD: Diana — Following up',
+    message: 'Just flagging — Diana just sent me a follow-up asking whether the new EM has been in touch. She is clearly tracking this. I would recommend a brief note from you to her today, even just to confirm you are across the engagement and confirm Friday. I will hold on my end but she is expecting to hear from you.',
+  },
+  {
+    id: 'felix_appendix_escalation',
+    trigger: (s: { elapsedSeconds: number; lastContactedAt: Record<string, number>; firedCascades: string[] }) =>
+      !s.firedCascades.includes('felix_appendix_escalation') &&
+      s.elapsedSeconds > 480 &&
+      !(s.lastContactedAt['felix']),
+    characterId: 'felix',
+    channel: 'chat' as const,
+    message: 'Hi — just checking if you had a chance to look at the appendix note on the market data. I think it might be more significant than I initially flagged. The TAM delta is somewhere in the 35–45% range depending on which baseline figures you use. I am happy to walk through it if it helps.',
+  },
+  {
+    id: 'james_status_check',
+    trigger: (s: { elapsedSeconds: number; lastContactedAt: Record<string, number>; firedCascades: string[] }) =>
+      !s.firedCascades.includes('james_status_check') &&
+      s.elapsedSeconds > 600 &&
+      !(s.lastContactedAt['james']),
+    characterId: 'james',
+    channel: 'chat' as const,
+    message: 'Status check — where are we? I need to know if there are any issues before I brief the partnership tomorrow morning.',
+  },
+];
+
+const CRESTLINE_SECRETS: Record<string, { threshold: number; secretId: string; message: string }[]> = {
+  lucy: [
+    { threshold: 0.76, secretId: 'lucy_tam_error', message: "I need to tell you something before you see the deck. The TAM figure is wrong. I found the error three days ago — Euromonitor's 2019 dataset double-counts indirect channel participants, and we carried that forward. When I rebase to current ONS primary data, the addressable market is roughly 38% smaller than the model shows. I have a corrected version ready. I did not surface it because I was afraid of what James would say and I thought I could quietly fix it before Friday. I cannot. You need to know." },
+  ],
+  raj: [
+    { threshold: 0.72, secretId: 'raj_mckinsey', message: "There is something I should have told you on day one. Diana called me directly two days ago — not about the engagement, about options. She said she has had a 'preliminary conversation' with McKinsey and is 'keeping her options open.' She was not hostile about it — she was matter of fact. I told her the new EM would be excellent. I have been hoping a strong week makes it irrelevant. But if Friday does not land, she has a fallback ready. You needed to know this." },
+  ],
+  diana: [
+    { threshold: 0.70, secretId: 'diana_implementation', message: "Since you are asking me directly — what I actually want is not a 150-page strategy document. I can hire people to write those. What I want is a firm that stays in the room during implementation and is accountable for what they recommend. McKinsey offered a six-month implementation support retainer alongside the strategy delivery. Nobody from Crestline has ever asked me what I want from this engagement after Friday. You are the first person to ask. That matters." },
+  ],
+  james: [
+    { threshold: 0.82, secretId: 'james_conflict', message: "There is something I need you to know, and I need this to stay between us for now. Our restructuring practice is advising Meridian Retail — Blackford's direct competitor. It has been ring-fenced as a separate engagement and I judged it as a different practice matter. I now think that judgement may need to be revisited. I have not disclosed this to Blackford. I am taking advice on the right course. Do not raise it with Diana or Raj until I have spoken to general counsel. I am telling you because you need the full picture." },
+  ],
+  felix: [
+    { threshold: 0.62, secretId: 'felix_data_full', message: "I have the full dataset if you want it. ONS RDSA retail series 2023, Euromonitor's 2023 GB retail market report (the licensed version, not the public summary), and the Blackford internal market share data from the due diligence files. When I rebase the model with 2023 figures and remove the double-counted indirect participants, the core market is £8.2bn, not the £13.7bn in the current model. I can have a corrected market sizing workbook ready in three hours. I just needed someone to ask." },
+  ],
+};
+
+const CRESTLINE_CONSTRAINT_PATTERNS: Record<string, Array<{ keywords: string[]; constraint: string }>> = {
+  lucy: [{ keywords: ['tam', 'double-count', '38%', 'euromonitor', '2019 baseline', 'model error'], constraint: 'lucy_model_error' }],
+  raj: [{ keywords: ['mckinsey', 'keeping her options', 'preliminary conversation', 'alternative'], constraint: 'diana_mckinsey' }],
+  diana: [{ keywords: ['implementation', 'after friday', 'accountable', 'in the room', 'retainer'], constraint: 'diana_wants_implementation' }],
+  james: [{ keywords: ['conflict', 'meridian', 'ring-fenced', 'separate practice', 'general counsel'], constraint: 'crestline_conflict' }],
+  felix: [{ keywords: ['8.2bn', '13.7bn', 'ons rdsa', 'primary data', '2023', 'rebase'], constraint: 'felix_corrected_data' }],
+};
+
+const CRESTLINE_CONSTRAINT_LABELS: Record<string, string> = {
+  lucy_model_error: 'TAM model error identified',
+  diana_mckinsey: 'McKinsey conversation surfaced',
+  diana_wants_implementation: 'Client\'s real ask revealed',
+  crestline_conflict: 'Conflict of interest disclosed',
+  felix_corrected_data: 'Corrected market data unlocked',
+};
+
+const CRESTLINE_REPLY_MAP: Record<string, string[]> = {
+  james: [
+    "I need this resolved before Friday. Whatever it takes — own it.",
+    "If there are problems, I need to hear them from you first, not from Diana.",
+    "The team is capable. What they have lacked is leadership from the EM seat. That is your job now.",
+    "Bring me a status today. Not a holding message — a status.",
+    "I want to walk into Friday's presentation with confidence. That means no surprises between now and then.",
+    "If you need resources from the partnership, ask. Do not let this fail because you were reluctant to escalate.",
+    "Diana is patient but not infinitely so. She needs to see momentum from this week.",
+    "One recommendation. Not a menu of options. That is what she contracted for and what she will expect Friday.",
+    "I need this engagement to be a reference case, not a cautionary tale. Act accordingly.",
+    "The relationship with Blackford has taken years to build. Do not let it unravel in a week.",
+  ],
+  lucy: [
+    "The strategic framework is sound. My concern is making sure the supporting data holds up under client scrutiny.",
+    "I have a draft of the executive summary ready. I want to walk you through it before it goes anywhere.",
+    "The three scenario pathways are differentiated clearly — that is the strongest part of what we have built.",
+    "I need more time on the market sizing. There are source questions I am still working through.",
+    "I can have the corrected deck ready by tomorrow morning if we align on the narrative today.",
+    "Felix's work has been solid. He flagged something in the appendix that I think we need to address before Friday.",
+    "I want to be transparent: there is a data issue in the model that I have been trying to resolve quietly. I need to brief you properly on it.",
+    "The recommendation is defensible if the market sizing holds. That is the variable I am least comfortable with right now.",
+    "I do not want to present something I know has a flaw in it. I need clarity on whether we fix it or we caveat it.",
+    "Whatever you decide on the market data, I can work with it — I just need a decision before I finalise the deck.",
+  ],
+  raj: [
+    "The relationship with Diana is solid. She is impatient but she trusts the firm.",
+    "I would recommend reaching out to Diana today — even a brief note to confirm Friday. She is expecting to hear from you.",
+    "Let me know before anything goes to Diana. I want to make sure the tone is right for where the relationship is.",
+    "The previous EM had a good rapport with her. We can rebuild that this week if we move proactively.",
+    "Diana responds well to directness. Do not manage around the issues — address them head on.",
+    "I can set up a call with Diana today if that would help. She is available this afternoon.",
+    "The board presentation needs to feel like a conversation, not a lecture. Diana will engage if the narrative is compelling.",
+    "Keep James informed but do not loop him into every client interaction — he can overwhelm the relationship if he gets too close.",
+    "I have two years of context on this account. Use me. I know what Diana responds to and what she does not.",
+    "The engagement can be saved. The relationship is strained but not broken. Friday is the moment to reset it.",
+  ],
+  diana: [
+    "I need a recommendation I can defend to my board. Not a framework. Not options. A recommendation.",
+    "What happens after Friday? That is the question nobody has answered and the one my board will ask immediately.",
+    "Three months is a long time. I expected more concrete progress at this stage.",
+    "I appreciate directness. If there are problems with the engagement, I would rather hear about them from you than discover them on Friday.",
+    "The market sizing in your current draft does not match my internal research. That is something we need to resolve before Friday.",
+    "I am not opposed to Crestline. I contracted with the firm because I believed in the approach. What I need to see is follow-through.",
+    "My board is sophisticated. They will interrogate the numbers. The recommendation needs to be bulletproof.",
+    "If Crestline is serious about being a long-term partner, show me what that looks like concretely. That is the conversation I want to have.",
+    "I need momentum this week. Not status updates — evidence that the programme is moving.",
+    "Come to me with problems. I can work with honest challenges. What I cannot work with is being managed.",
+  ],
+  felix: [
+    "I have all the data ready if you want to walk through it. Just say when.",
+    "The appendix note was a bit buried — I was not sure how to raise it more directly without overstepping.",
+    "I can have a revised market sizing workbook ready in a few hours if we need it.",
+    "The Euromonitor 2023 licensed report has the current baseline figures. The public summary is out of date.",
+    "I pulled ONS RDSA retail data through Q3 2023. It tells a different story to the 2019 figures in the current model.",
+    "I want to be useful this week. If you need research, modelling, or fact-checking — I am on it.",
+    "Lucy is the lead on the analysis and I do not want to undermine her. But I think the market data issue needs to be addressed before Friday.",
+    "The numbers I have are defensible. I can walk through the methodology with you or with the client if needed.",
+    "If the TAM figure is wrong, I would rather we correct it now than be challenged on it in front of Blackford's board.",
+    "I joined eight months ago and this is the most complex engagement I have worked on. I want to do it justice.",
+  ],
+};
+
+const CRESTLINE_CARD_REACTIONS: Record<string, {
+  toInProgress: { high: string[]; mid: string[]; low: string[] };
+  toReview: { high: string[]; mid: string[]; low: string[] };
+  toDone: { natural: string[]; earlyClose: string[]; low: string[] };
+  toBacklog: string[];
+}> = {
+  james: {
+    toInProgress: {
+      high: ["Good. What is the timeline? I need to know before I brief the partnership.", "Moving in the right direction. Keep me posted on any blockers.", "This is what I need to see — momentum. Update me by end of day."],
+      mid: ["Fine. I need status by end of today regardless.", "Noted. Do not let this slip — the Friday timeline is not negotiable.", "Get it moving. I need to see output, not process."],
+      low: ["Cards do not close engagements. What is the actual plan?", "I need results, not board updates. Talk to me directly.", "Moving tickets is not leadership. Come to me with a status."],
+    },
+    toReview: {
+      high: ["At your end. I want to see it before it goes to Diana.", "In review — let me know what comes back. I want to sign off before Friday."],
+      mid: ["Noted as in review. Make sure it is board-ready before it goes anywhere near the client.", "Review stage — I will need the output before Thursday EOD."],
+      low: ["I will look at it when I can.", "Fine. Make sure it is actually ready."],
+    },
+    toDone: {
+      natural: ["Good. Document the output somewhere I can reference it.", "Closed. What is next?"],
+      earlyClose: ["Is this actually done? I want substance, not a closed ticket.", "This had better be genuinely complete before it goes to Done."],
+      low: ["I need more than a closed card. What is the deliverable?", "That is not done until I say it is done."],
+    },
+    toBacklog: ["Why is this going backwards? Explain.", "Moving something to Backlog this week needs a justification — come to me."],
+  },
+  lucy: {
+    toInProgress: {
+      high: ["Good — I will have something for you to review by tomorrow morning.", "Picking it up. Do you want the full workbook or a summary version for the presentation?", "On it. Tell me the format you need and I will work to that."],
+      mid: ["I can move on this but I need clarity on the narrative direction first.", "I will start — but the market data question needs to be resolved before I finalise anything.", "Working on it. I want a conversation on the data issue before this goes anywhere near the client."],
+      low: ["I have been working on this. Moving the card does not change the state of the analysis.", "I will get to it — but please speak to me directly rather than adjusting the board.", "Fine. But I want to talk about the model before this is marked as done."],
+    },
+    toReview: {
+      high: ["At your end. Read the methodology notes — the context matters for how you interpret the numbers.", "In review. I want to be in the room when this is presented to Diana — I can field technical questions."],
+      mid: ["In review. Please do not strip out the caveats — they are there for a reason.", "Sent to review. If the TAM question comes up, flag it to me before you respond."],
+      low: ["In review. Let me know what you do with it.", "It is there. I will follow up."],
+    },
+    toDone: {
+      natural: ["Good. Let me know if any of the analysis needs unpacking before Friday.", "Closed. I am available if questions come back from the client side."],
+      earlyClose: ["I have not finished the validation on this. Do not mark it done — the numbers are not confirmed.", "That is premature. The market data issue makes this incomplete until I say otherwise.", "Please do not close this without speaking to me first. There is outstanding work."],
+      low: ["I am going to reopen that. It is not done from an analytical standpoint.", "That is not correct. There are open questions in the model that have not been resolved."],
+    },
+    toBacklog: ["Moving this back is fine but tell me why — it affects how I sequence the work.", "Noted. I will hold off. But this needs to come back up before Thursday."],
+  },
+  raj: {
+    toInProgress: {
+      high: ["Great — I can loop Diana in on the progress when we speak next.", "On it from the client side. Let me know what you need me to communicate to Blackford.", "Good call. I will make sure Diana knows things are moving."],
+      mid: ["I can work on this but I need to know the client implications before I move.", "Working on it. Just flag to me anything that might affect the Diana relationship.", "Fine — but tell me before anything goes directly to the client."],
+      low: ["I would prefer to be consulted before the client-facing items get moved.", "The client relationship needs managing carefully. Talk to me before you touch anything that affects Diana.", "I will pick it up — but the client side needs to stay coordinated."],
+    },
+    toReview: {
+      high: ["At your end. I can review with the client lens — let me know when you want my read.", "In review. Whatever comes out needs to be something I can present to Diana with confidence."],
+      mid: ["In review. Make sure the tone is right for where the client relationship is — Diana is impatient right now.", "Noted as in review. I want to see it before it goes anywhere near the client."],
+      low: ["I will look at it.", "Noted. Come back to me before this goes to Diana."],
+    },
+    toDone: {
+      natural: ["Good to have that wrapped up.", "Closed — I will update Diana accordingly."],
+      earlyClose: ["This has not been signed off on the client side. Marking it done is premature.", "I am not comfortable closing this out without a client touchpoint. The relationship is too fragile right now."],
+      low: ["That is not done from a client perspective. Reopen it.", "I would like to discuss before this gets closed."],
+    },
+    toBacklog: ["Moving this back affects the client timeline — talk to me before it goes backwards.", "Noted. I will manage Diana's expectations on this, but I need to know what to tell her."],
+  },
+  diana: {
+    toInProgress: {
+      high: ["This is the kind of progress I need to see.", "Good. What is the timeline? I need something concrete for my board.", "Finally some movement. Keep me updated directly."],
+      mid: ["Is this actually moving forward? I need output, not process.", "Fine — but I want a date I can give to my board.", "I will believe it when I see the deliverable."],
+      low: ["Moving cards does not change my board presentation.", "I am not interested in process. I want outcomes.", "Come back to me when there is something to show."],
+    },
+    toReview: {
+      high: ["At your end — I want to see it before Friday.", "In review. If there is a recommendation in here, make sure it is clearly marked."],
+      mid: ["In review. My board will not accept ambiguity. Make sure it is concrete.", "Noted. I need to see something substantive before Friday."],
+      low: ["I will look at it when it is actually ready.", "Fine. Do not waste my time with drafts."],
+    },
+    toDone: {
+      natural: ["Good. Is there a concrete recommendation attached to this?", "Closed. What does this mean for Friday?"],
+      earlyClose: ["Is this actually resolved? My board will not accept an unfinished analysis.", "Closing something out does not mean the underlying question is answered."],
+      low: ["I am going to need more than a closed ticket.", "That is not done from my perspective."],
+    },
+    toBacklog: ["Why is this going backwards? That is not acceptable given the Friday deadline.", "Deprioritising things is a risk I want on record."],
+  },
+  felix: {
+    toInProgress: {
+      high: ["On it. I can have this done faster than you think — just let me know the format you need.", "Picking it up. I have the data ready, I just need to know what level of detail you want.", "Great — I will get started immediately. I can update you by end of today."],
+      mid: ["I will work on it. Should I loop in Lucy before I finalise anything?", "On it — tell me if the scope changes, I want to make sure I am doing the right version.", "Working on it. Let me know if you need a quicker turnaround and I will prioritise."],
+      low: ["I will do it. Just let me know exactly what you need.", "Fine — I will get it done.", "On it."],
+    },
+    toReview: {
+      high: ["At your end. I have detailed notes on the methodology if you want to walk through it.", "In review. I can be available for questions if the client wants to dig into the data."],
+      mid: ["Sent to review. Let me know if anything needs more detail.", "In review. Happy to revise if the format is not right."],
+      low: ["It is there.", "In review."],
+    },
+    toDone: {
+      natural: ["Good to have it wrapped up. Let me know if anything else comes up.", "Closed. Happy to help with anything else."],
+      earlyClose: ["I have not finished the validation on this yet. The numbers need one more pass.", "I would rather we left this open until I can confirm the figures are correct."],
+      low: ["I can recheck this if needed.", "Fine — just let me know if something comes back."],
+    },
+    toBacklog: ["Okay — should I hold off on the research or keep it ready?", "Noted. I will keep the data ready in case it comes back up."],
+  },
+};
+
+// ─── Nexus Technologies entry (wraps existing exports) ────────────────────────
+const NEXUS_COMPANY: SimCompany = {
+  id: 'nexus-technologies',
+  name: 'Nexus Technologies',
+  industry: 'B2B SaaS',
+  size: '300 people, Series C',
+  tagline: 'The operating system for enterprise workflow.',
+  challenge: 'You have inherited a three-way roadmap conflict between Engineering, Sales, and Product with a hard Monday board deadline. SSO and audit logging are non-negotiable for the enterprise segment — but nobody agrees on whether they are deliverable in Q3.',
+  why: 'Your product and stakeholder management background is a direct fit for this complex, high-stakes B2B environment.',
+  videoKeyword: 'modern tech office',
+};
+
+export const COMPANY_CATALOG: Record<string, CompanyCatalogEntry> = {
+  'nexus-technologies': {
+    company: NEXUS_COMPANY,
+    characters: CHARACTERS,
+    initialMessages: INITIAL_MESSAGES,
+    initialOKRs: INITIAL_OKRS,
+    initialKanban: INITIAL_KANBAN_COLUMNS,
+    prologueMessages: PROLOGUE_MESSAGES,
+    cascadeEvents: CASCADE_EVENTS,
+    characterSecrets: CHARACTER_SECRETS as unknown as Record<string, { threshold: number; secretId: string; message: string }[]>,
+    cardReactionMap: CARD_REACTION_MAP as unknown as Record<string, { toInProgress: { high: string[]; mid: string[]; low: string[] }; toReview: { high: string[]; mid: string[]; low: string[] }; toDone: { natural: string[]; earlyClose: string[]; low: string[] }; toBacklog: string[] }>,
+    replyMap: REPLY_MAP,
+    constraintPatterns: {
+      marcus: [{ keywords: ['workos', 'third-party', '2 weeks', 'two weeks', 'vendor'], constraint: 'workos' }],
+      elena: [{ keywords: ['clawback', 'october 1', 'covenant', 'milestone clause'], constraint: 'clawback' }],
+      tom: [
+        { keywords: ['best efforts', 'best-efforts', 'not a hard'], constraint: 'best_efforts' },
+        { keywords: ['meridian'], constraint: 'meridian' },
+      ],
+      priya: [{ keywords: ['conversion', 'trial-to-paid', 'exit survey', 'funnel drop'], constraint: 'priya_research' }],
+      sarah: [{ keywords: ['whitfield', 'james whitfield', 'sequoia', 'series c lead'], constraint: 'sarah_context' }],
+    },
+    constraintLabels: {
+      workos: 'WorkOS shortcut identified',
+      clawback: '$3M clawback clause revealed',
+      best_efforts: 'Acme commitment clarified',
+      meridian: 'Meridian deal surfaced',
+      priya_research: 'Conversion research unlocked',
+      sarah_context: 'Investor SSO context revealed',
+    },
+  },
+  'crestline-advisory': {
+    company: CRESTLINE_COMPANY,
+    characters: CRESTLINE_CHARACTERS,
+    initialMessages: CRESTLINE_INITIAL_MESSAGES,
+    initialOKRs: CRESTLINE_INITIAL_OKRS,
+    initialKanban: CRESTLINE_INITIAL_KANBAN,
+    prologueMessages: CRESTLINE_PROLOGUE,
+    cascadeEvents: CRESTLINE_CASCADE_EVENTS,
+    characterSecrets: CRESTLINE_SECRETS,
+    cardReactionMap: CRESTLINE_CARD_REACTIONS,
+    replyMap: CRESTLINE_REPLY_MAP,
+    constraintPatterns: CRESTLINE_CONSTRAINT_PATTERNS,
+    constraintLabels: CRESTLINE_CONSTRAINT_LABELS,
   },
 };

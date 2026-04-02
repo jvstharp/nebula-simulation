@@ -1,19 +1,8 @@
 'use client';
-import { useEffect, useRef } from 'react';
 import { useAppStore } from '@/lib/store';
-import { LATERAL_TRUST } from '@/lib/data';
-import { CharacterId } from '@/lib/types';
 
 const CENTER = { x: 260, y: 220 };
 const RADIUS = 155;
-
-const NODE_POSITIONS: Record<CharacterId, { x: number; y: number }> = {
-  sarah:  { x: CENTER.x + RADIUS * Math.cos(-Math.PI / 2 + 0 * (2 * Math.PI / 5)), y: CENTER.y + RADIUS * Math.sin(-Math.PI / 2 + 0 * (2 * Math.PI / 5)) },
-  marcus: { x: CENTER.x + RADIUS * Math.cos(-Math.PI / 2 + 1 * (2 * Math.PI / 5)), y: CENTER.y + RADIUS * Math.sin(-Math.PI / 2 + 1 * (2 * Math.PI / 5)) },
-  priya:  { x: CENTER.x + RADIUS * Math.cos(-Math.PI / 2 + 2 * (2 * Math.PI / 5)), y: CENTER.y + RADIUS * Math.sin(-Math.PI / 2 + 2 * (2 * Math.PI / 5)) },
-  tom:    { x: CENTER.x + RADIUS * Math.cos(-Math.PI / 2 + 3 * (2 * Math.PI / 5)), y: CENTER.y + RADIUS * Math.sin(-Math.PI / 2 + 3 * (2 * Math.PI / 5)) },
-  elena:  { x: CENTER.x + RADIUS * Math.cos(-Math.PI / 2 + 4 * (2 * Math.PI / 5)), y: CENTER.y + RADIUS * Math.sin(-Math.PI / 2 + 4 * (2 * Math.PI / 5)) },
-};
 
 function trustColor(t: number): string {
   if (t >= 0.70) return '#22c55e';
@@ -26,9 +15,22 @@ function trustStroke(t: number): number {
 }
 
 export function RelationshipWeb() {
-  const { characters, user, session } = useAppStore();
+  const { characters, user, session, activeCatalog } = useAppStore();
 
   const userNode = { x: CENTER.x, y: CENTER.y };
+
+  // Compute positions dynamically from active character list
+  const nodePositions: Record<string, { x: number; y: number }> = {};
+  characters.forEach((char, i) => {
+    const angle = -Math.PI / 2 + i * (2 * Math.PI / characters.length);
+    nodePositions[char.id] = {
+      x: CENTER.x + RADIUS * Math.cos(angle),
+      y: CENTER.y + RADIUS * Math.sin(angle),
+    };
+  });
+
+  // Use catalog lateral trust if available, else empty
+  const lateralTrust = (activeCatalog as any)?.lateralTrust ?? [];
 
   return (
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '8px 0' }}>
@@ -38,9 +40,10 @@ export function RelationshipWeb() {
 
       <svg width={520} height={440} viewBox="0 0 520 440" style={{ maxWidth: '100%' }}>
         {/* Lateral edges (character↔character) */}
-        {LATERAL_TRUST.map((edge, i) => {
-          const from = NODE_POSITIONS[edge.from];
-          const to = NODE_POSITIONS[edge.to];
+        {lateralTrust.map((edge: { from: string; to: string; trust: number }, i: number) => {
+          const from = nodePositions[edge.from];
+          const to = nodePositions[edge.to];
+          if (!from || !to) return null;
           return (
             <line
               key={`lateral-${i}`}
@@ -56,7 +59,8 @@ export function RelationshipWeb() {
 
         {/* User→character edges */}
         {characters.map(char => {
-          const pos = NODE_POSITIONS[char.id];
+          const pos = nodePositions[char.id];
+          if (!pos) return null;
           return (
             <line
               key={`user-${char.id}`}
@@ -71,7 +75,8 @@ export function RelationshipWeb() {
 
         {/* Character nodes */}
         {characters.map(char => {
-          const pos = NODE_POSITIONS[char.id];
+          const pos = nodePositions[char.id];
+          if (!pos) return null;
           return (
             <g key={char.id}>
               <circle
@@ -149,7 +154,7 @@ export function RelationshipWeb() {
       {/* Secrets unlocked count */}
       {session && (
         <div style={{ marginTop: 14, fontSize: 11, color: 'rgba(255,255,255,0.35)', textAlign: 'center' }}>
-          ✦ {session.unlockedSecrets.length} of 5 hidden intel items unlocked
+          ✦ {session.unlockedSecrets.length} of {characters.length} hidden intel items unlocked
         </div>
       )}
     </div>

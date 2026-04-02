@@ -1,40 +1,23 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Character, CharacterId, Message, SessionState, Screen, AppTab, BrowserTab, ChaosEvent, OKR, PortfolioCaseStudy, AccessibilityPrefs, SimulationStage, KanbanCard, KanbanColumn } from './types';
-import { CHARACTERS, INITIAL_SESSION, INITIAL_MESSAGES, INITIAL_OKRS, REPLY_MAP, INITIAL_KANBAN_COLUMNS, CARD_REACTION_MAP } from './data';
+import { Character, CharacterId, Message, SessionState, Screen, AppTab, BrowserTab, ChaosEvent, OKR, PortfolioCaseStudy, AccessibilityPrefs, SimulationStage, KanbanCard, KanbanColumn, CompanyCatalogEntry } from './types';
+import { CHARACTERS, INITIAL_SESSION, INITIAL_MESSAGES, INITIAL_OKRS, REPLY_MAP, INITIAL_KANBAN_COLUMNS, CARD_REACTION_MAP, COMPANY_CATALOG, PROLOGUE_MESSAGES } from './data';
 import { getSoundscape } from './soundscape';
 import { generateCharacterReply, TriggerType } from './ai';
 
-// ── Constraint detection — client-side keyword scan on character replies ──────
-const CONSTRAINT_PATTERNS: Record<string, Array<{ keywords: string[]; constraint: string }>> = {
-  marcus: [{ keywords: ['workos', 'third-party', '2 weeks', 'two weeks', 'vendor'], constraint: 'workos' }],
-  elena: [{ keywords: ['clawback', 'october 1', 'covenant', 'milestone clause'], constraint: 'clawback' }],
-  tom: [
-    { keywords: ['best efforts', 'best-efforts', 'not a hard'], constraint: 'best_efforts' },
-    { keywords: ['meridian'], constraint: 'meridian' },
-  ],
-  priya: [{ keywords: ['conversion', 'trial-to-paid', 'exit survey', 'funnel drop'], constraint: 'priya_research' }],
-  sarah: [{ keywords: ['whitfield', 'james whitfield', 'sequoia', 'series c lead'], constraint: 'sarah_context' }],
-};
-
-function detectConstraint(characterId: string, replyText: string): string | null {
-  const patterns = CONSTRAINT_PATTERNS[characterId];
-  if (!patterns) return null;
+function detectConstraint(
+  characterId: string,
+  replyText: string,
+  patterns: Record<string, Array<{ keywords: string[]; constraint: string }>>
+): string | null {
+  const charPatterns = patterns[characterId];
+  if (!charPatterns) return null;
   const lower = replyText.toLowerCase();
-  for (const { keywords, constraint } of patterns) {
+  for (const { keywords, constraint } of charPatterns) {
     if (keywords.some(k => lower.includes(k))) return constraint;
   }
   return null;
 }
-
-const CONSTRAINT_LABELS: Record<string, string> = {
-  workos: 'WorkOS shortcut identified',
-  clawback: '$3M clawback clause revealed',
-  best_efforts: 'Acme commitment clarified',
-  meridian: 'Meridian deal surfaced',
-  priya_research: 'Conversion research unlocked',
-  sarah_context: 'Investor SSO context revealed',
-};
 
 // ── Document share detection ──────────────────────────────────────────────────
 const DOC_SHARE_RE = /(?:shared|sent you|sending over|your drive|check your|dropped|put together|i've added|ping(?:ed)? you|forwarding)/i;
@@ -159,9 +142,9 @@ interface AppStore {
 
   // Kanban board (shared state so simulation can update it)
   kanbanColumns: KanbanColumn[];
-  cardAdvanceCooldowns: Partial<Record<CharacterId, number>>;
+  cardAdvanceCooldowns: Partial<Record<string, number>>;
   moveKanbanCard: (cardId: string, toColId: string) => void;
-  injectMessage: (characterId: CharacterId, body: string, channel: 'chat' | 'email') => void;
+  injectMessage: (characterId: string, body: string, channel: 'chat' | 'email') => void;
   onUserMoveCard: (card: KanbanCard, fromColId: string, toColId: string) => void;
 
   // Onboarding
@@ -178,6 +161,10 @@ interface AppStore {
   revealedConstraints: string[];
   constraintToasts: Array<{ id: string; constraint: string; label: string; characterName: string }>;
   dismissConstraintToast: (id: string) => void;
+
+  // Active company catalog — set during startSession
+  activeCatalog: CompanyCatalogEntry | null;
+  prologueMessages: { from: string; delay: number; text: string }[];
 }
 
 export const useAppStore = create<AppStore>()(persist((set, get) => ({
@@ -221,15 +208,26 @@ export const useAppStore = create<AppStore>()(persist((set, get) => ({
   })),
 
   startSession: () => {
+    const { userProfile } = get();
+    const companyId = userProfile?.chosenCompany?.id ?? 'nexus-technologies';
+    const catalog = COMPANY_CATALOG[companyId] ?? COMPANY_CATALOG['nexus-technologies'];
+
+    const baseSession = { ...INITIAL_SESSION, startedAt: new Date(), chaosTier: null as null, chaosResolving: false, portfolio: null as null };
+    // Override OKRs with catalog-specific OKRs
+    const session = { ...baseSession, scenarioId: companyId, okrs: catalog.initialOKRs };
+
     set({
-      session: { ...INITIAL_SESSION, startedAt: new Date(), chaosTier: null, chaosResolving: false, portfolio: null },
-      messages: INITIAL_MESSAGES,
-      characters: CHARACTERS,
+      session,
+      messages: catalog.initialMessages,
+      characters: catalog.characters,
+      kanbanColumns: catalog.initialKanban,
+      activeCatalog: catalog,
+      prologueMessages: catalog.prologueMessages,
     });
     getSoundscape().init().catch(() => {});
 
     // Create DB session record (fire and forget — sim runs offline if this fails)
-    apiPost('/api/sessions', { scenarioId: 'roadmap-reckoning' }).then((data: any) => {
+    apiPost('/api/sessions', { scenarioId: companyId }).then((data: any) => {
       if (data?.session?.id) {
         set({ dbSessionId: data.session.id });
       }
@@ -268,15 +266,16 @@ export const useAppStore = create<AppStore>()(persist((set, get) => ({
       scheduleStateSync(dbSessionId, get);
     }
 
-    // Generate live reply via Claude; fall back to REPLY_MAP on failure
-    const { kanbanColumns } = get();
+    // Generate live reply via Claude; fall back to catalog REPLY_MAP on failure
+    const { kanbanColumns, activeCatalog } = get();
     generateCharacterReply(
       activeCharacter.id,
       'message_reply',
       body,
       { character: activeCharacter, recentMessages: messages, session: session!, kanbanColumns, companyContext: get().userProfile?.chosenCompany }
     ).then(result => {
-      const fallbackPool = REPLY_MAP[activeCharacter.id] || [];
+      const replyMap = activeCatalog?.replyMap ?? REPLY_MAP;
+      const fallbackPool = replyMap[activeCharacter.id] || [];
       const text = result.reply ?? (fallbackPool[Math.floor(Math.random() * fallbackPool.length)] || "I'll get back to you on this.");
       // Use AI-derived trust delta; fall back to small random value if API failed to return one
       const trustDelta = result.trustDelta !== null ? result.trustDelta : (Math.random() - 0.35) * 0.08;
@@ -380,8 +379,10 @@ export const useAppStore = create<AppStore>()(persist((set, get) => ({
     }, 3500);
 
     // Constraint discovery detection
-    const { revealedConstraints } = get();
-    const detected = detectConstraint(characterId, body);
+    const { revealedConstraints, activeCatalog } = get();
+    const constraintPatterns = activeCatalog?.constraintPatterns ?? {};
+    const constraintLabels = activeCatalog?.constraintLabels ?? {};
+    const detected = detectConstraint(characterId, body, constraintPatterns);
     if (detected && !revealedConstraints.includes(detected)) {
       const toastId = Math.random().toString(36).slice(2);
       const charDisplayName = get().characters.find(c => c.id === characterId)?.name ?? characterId;
@@ -390,7 +391,7 @@ export const useAppStore = create<AppStore>()(persist((set, get) => ({
         constraintToasts: [...s.constraintToasts, {
           id: toastId,
           constraint: detected,
-          label: CONSTRAINT_LABELS[detected] ?? detected,
+          label: constraintLabels[detected] ?? detected,
           characterName: charDisplayName,
         }],
       }));
@@ -416,11 +417,14 @@ export const useAppStore = create<AppStore>()(persist((set, get) => ({
     getSoundscape().playNotificationPing();
 
     // Teammate card progression: advance one of their assigned cards based on trust
-    const assigneeInitialMap: Record<string, string> = { marcus: 'M', tom: 'T', priya: 'P', sarah: 'S', elena: 'E' };
-    const assigneeInitial = assigneeInitialMap[characterId];
+    const charToInitialMap: Record<string, string> = {
+      marcus: 'M', tom: 'T', priya: 'P', sarah: 'S', elena: 'E',
+      james: 'J', lucy: 'L', raj: 'R', diana: 'D', felix: 'F',
+    };
+    const assigneeInitial = charToInitialMap[characterId];
     if (assigneeInitial && newTrust >= 0.45) {
       const cooldowns = get().cardAdvanceCooldowns;
-      const lastAdvance = cooldowns[characterId as CharacterId] ?? 0;
+      const lastAdvance = cooldowns[characterId] ?? 0;
       const cooldownMs = 30000;
       if (Date.now() - lastAdvance >= cooldownMs) {
         setTimeout(() => {
@@ -458,7 +462,7 @@ export const useAppStore = create<AppStore>()(persist((set, get) => ({
             `You are moving "${cardSnapshot.title}" to ${toColSnapshot === 'inprogress' ? 'In Progress' : 'Review'}.`,
             { character: advChar, recentMessages: get().messages, session: get().session!, kanbanColumns: get().kanbanColumns, companyContext: get().userProfile?.chosenCompany }
           ).then(result => {
-            injectMessage(characterId as CharacterId, result.reply ?? fallbackMsg, 'chat');
+            injectMessage(characterId, result.reply ?? fallbackMsg, 'chat');
           });
         }, 4000 + Math.random() * 6000);
       }
@@ -663,13 +667,20 @@ export const useAppStore = create<AppStore>()(persist((set, get) => ({
     }
     if (!session || session.status !== 'active') return;
 
+    const { activeCatalog } = get();
+
     // PM's own card moved to Done: relevant teammate acknowledges
     if (card.assignee === 'Y' && toColId === 'done') {
-      const tagToChar: Record<string, CharacterId> = {
+      // Build tag→characterId map from active catalog characters
+      const catalogChars = activeCatalog?.characters ?? characters;
+      const defaultAcknowledger = catalogChars[0]?.id ?? 'sarah';
+      const tagToChar: Record<string, string> = {
         Eng: 'marcus', Sales: 'tom', Research: 'priya', UX: 'priya',
         Executive: 'elena', Strategy: 'sarah', Product: 'sarah', Process: 'sarah',
+        // Crestline tags
+        Client: 'raj', Internal: 'james',
       };
-      const acknowledger: CharacterId = tagToChar[card.tag] ?? 'sarah';
+      const acknowledger = tagToChar[card.tag] ?? defaultAcknowledger;
       const ackChar = characters.find(c => c.id === acknowledger);
       const trust = ackChar?.trust ?? 0.5;
       const ack = trust >= 0.65
@@ -683,15 +694,22 @@ export const useAppStore = create<AppStore>()(persist((set, get) => ({
 
     // Only react to teammate cards
     if (card.assignee === 'Y') return;
-    const charInitialMap: Record<string, CharacterId> = { M: 'marcus', T: 'tom', P: 'priya', S: 'sarah', E: 'elena' };
+    // Build assignee initial → characterId from active catalog characters
+    const catalogCharacters = activeCatalog?.characters ?? characters;
+    const charInitialMap: Record<string, string> = {
+      M: 'marcus', T: 'tom', P: 'priya', S: 'sarah', E: 'elena',
+      // Crestline assignee initials
+      J: 'james', L: 'lucy', R: 'raj', D: 'diana', F: 'felix',
+    };
     const characterId = charInitialMap[card.assignee];
     if (!characterId) return;
-    const char = characters.find(c => c.id === characterId);
+    const char = catalogCharacters.find(c => c.id === characterId);
     if (!char) return;
 
     const trust = char.trust;
     const tier: 'high' | 'mid' | 'low' = trust >= 0.65 ? 'high' : trust >= 0.45 ? 'mid' : 'low';
-    const reactions = CARD_REACTION_MAP[characterId];
+    const cardReactionMap = activeCatalog?.cardReactionMap ?? (CARD_REACTION_MAP as unknown as Record<string, typeof CARD_REACTION_MAP[keyof typeof CARD_REACTION_MAP]>);
+    const reactions = cardReactionMap[characterId];
     const pick = (pool: string[]) => pool[Math.floor(Math.random() * pool.length)];
 
     let pool: string[];
@@ -755,6 +773,9 @@ export const useAppStore = create<AppStore>()(persist((set, get) => ({
   dismissConstraintToast: (id) => set(s => ({
     constraintToasts: s.constraintToasts.filter(t => t.id !== id),
   })),
+
+  activeCatalog: null,
+  prologueMessages: PROLOGUE_MESSAGES,
 }), {
   name: 'nebula-store-v1',
   partialize: (state) => ({
