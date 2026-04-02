@@ -5,7 +5,7 @@ import { CHARACTERS, INITIAL_SESSION, INITIAL_MESSAGES, INITIAL_OKRS, REPLY_MAP,
 import { getSoundscape } from './soundscape';
 import { generateCharacterReply, TriggerType } from './ai';
 import { getApplicableCrossCompanyEvents, crossCompanyEventId } from './services/cross-company-engine';
-import { hydrateCascadeEvents } from './services/intelligence-engine';
+import { hydrateCascadeEvents } from './cascade-hydrator';
 
 function detectConstraint(
   characterId: string,
