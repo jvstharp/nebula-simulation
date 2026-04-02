@@ -1,9 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Character, CharacterId, Message, SessionState, Screen, AppTab, BrowserTab, ChaosEvent, OKR, PortfolioCaseStudy, AccessibilityPrefs, SimulationStage, KanbanCard, KanbanColumn, CompanyCatalogEntry } from './types';
+import { Character, CharacterId, Message, SessionState, Screen, AppTab, BrowserTab, ChaosEvent, OKR, PortfolioCaseStudy, AccessibilityPrefs, SimulationStage, KanbanCard, KanbanColumn, CompanyCatalogEntry, SimDomain, ReputationTier, GeneratedScenarioData } from './types';
 import { CHARACTERS, INITIAL_SESSION, INITIAL_MESSAGES, INITIAL_OKRS, REPLY_MAP, INITIAL_KANBAN_COLUMNS, CARD_REACTION_MAP, COMPANY_CATALOG, PROLOGUE_MESSAGES } from './data';
 import { getSoundscape } from './soundscape';
 import { generateCharacterReply, TriggerType } from './ai';
+import { getApplicableCrossCompanyEvents, crossCompanyEventId } from './services/cross-company-engine';
+import { hydrateCascadeEvents } from './services/intelligence-engine';
 
 function detectConstraint(
   characterId: string,
@@ -165,6 +167,17 @@ interface AppStore {
   // Active company catalog — set during startSession
   activeCatalog: CompanyCatalogEntry | null;
   prologueMessages: { from: string; delay: number; text: string }[];
+
+  // Phase 5: Domain & Reputation
+  selectedDomain: SimDomain | null;
+  setSelectedDomain: (d: SimDomain | null) => void;
+  userReputation: { tier: ReputationTier; avgComposite: number; totalSessions: number } | null;
+  setUserReputation: (r: AppStore['userReputation']) => void;
+  firedCrossCompanyEvents: string[];
+
+  // Phase 5: Dynamic scenario support
+  activeGeneratedScenario: GeneratedScenarioData | null;
+  startDynamicSession: (scenario: GeneratedScenarioData, scenarioId?: string) => void;
 }
 
 export const useAppStore = create<AppStore>()(persist((set, get) => ({
@@ -465,6 +478,28 @@ export const useAppStore = create<AppStore>()(persist((set, get) => ({
             injectMessage(characterId, result.reply ?? fallbackMsg, 'chat');
           });
         }, 4000 + Math.random() * 6000);
+      }
+    }
+
+    // Phase 5: Cross-company event injection
+    const companyId = session?.scenarioId;
+    if (companyId && session) {
+      const charTrustMap: Record<string, number> = {};
+      for (const c of get().characters) charTrustMap[c.id] = c.trust;
+      const { firedCrossCompanyEvents } = get();
+      const applicable = getApplicableCrossCompanyEvents(
+        companyId,
+        session.elapsedSeconds,
+        charTrustMap,
+        firedCrossCompanyEvents,
+      );
+      if (applicable.length > 0 && Math.random() < 0.4) {
+        const ref = applicable[0];
+        const eventId = crossCompanyEventId(ref);
+        set(s => ({ firedCrossCompanyEvents: [...s.firedCrossCompanyEvents, eventId] }));
+        setTimeout(() => {
+          get().injectMessage(ref.characterId, ref.messageTemplate, 'chat');
+        }, 5000 + Math.random() * 5000);
       }
     }
 
@@ -776,6 +811,109 @@ export const useAppStore = create<AppStore>()(persist((set, get) => ({
 
   activeCatalog: null,
   prologueMessages: PROLOGUE_MESSAGES,
+
+  // Phase 5
+  selectedDomain: null,
+  setSelectedDomain: (selectedDomain) => set({ selectedDomain }),
+  userReputation: null,
+  setUserReputation: (userReputation) => set({ userReputation }),
+  firedCrossCompanyEvents: [],
+
+  activeGeneratedScenario: null,
+  startDynamicSession: (scenario, scenarioId) => {
+    const { userProfile } = get();
+
+    // Build a catalog-compatible entry from the generated scenario
+    const hydratedCascades = scenario.cascadeEvents
+      ? hydrateCascadeEvents(scenario.cascadeEvents)
+      : [];
+
+    // Build reply map from characters (minimal fallback)
+    const replyMap: Record<string, string[]> = {};
+    for (const char of scenario.characters) {
+      replyMap[char.id] = [
+        "I'll get back to you on that.",
+        "Let me think about the best approach here.",
+        "That's worth considering. Let me follow up.",
+      ];
+    }
+
+    // Build card reaction map
+    const cardReactionMap: Record<string, any> = {};
+    for (const char of scenario.characters) {
+      cardReactionMap[char.id] = {
+        toInProgress: {
+          high: ["On it.", "Moving on this now."],
+          mid: ["I can pick this up.", "Working on it."],
+          low: ["Noted.", "I'll get to it."],
+        },
+        toReview: {
+          high: ["Ready for review.", "At your end."],
+          mid: ["In review.", "Take a look."],
+          low: ["In review.", "Noted."],
+        },
+        toDone: {
+          natural: ["Done.", "Closed out."],
+          earlyClose: ["That's not finished.", "Premature."],
+          low: ["Reopening.", "Not done."],
+        },
+        toBacklog: ["Noted.", "Understood."],
+      };
+    }
+
+    const catalogEntry: CompanyCatalogEntry = {
+      company: scenario.company,
+      characters: scenario.characters,
+      initialMessages: scenario.initialMessages.map(m => ({
+        ...m,
+        timestamp: new Date(m.timestamp),
+      })),
+      initialOKRs: scenario.initialOKRs,
+      initialKanban: scenario.initialKanban,
+      prologueMessages: scenario.prologueMessages,
+      cascadeEvents: hydratedCascades,
+      characterSecrets: scenario.characterSecrets,
+      cardReactionMap,
+      replyMap,
+      constraintPatterns: scenario.constraintPatterns,
+      constraintLabels: scenario.constraintLabels,
+    };
+
+    const baseSession = {
+      ...INITIAL_SESSION,
+      startedAt: new Date(),
+      scenarioId: scenario.company.id,
+      chaosTier: null as null,
+      chaosResolving: false,
+      portfolio: null as null,
+      okrs: scenario.initialOKRs,
+    };
+
+    set({
+      session: baseSession,
+      messages: catalogEntry.initialMessages,
+      characters: scenario.characters,
+      kanbanColumns: scenario.initialKanban,
+      activeCatalog: catalogEntry,
+      prologueMessages: scenario.prologueMessages,
+      activeGeneratedScenario: scenario,
+      firedCrossCompanyEvents: [],
+    });
+    getSoundscape().init().catch(() => {});
+
+    // Create DB session with generated scenario reference
+    apiPost('/api/sessions', {
+      scenarioId: scenario.company.id,
+      generatedScenarioId: scenarioId ?? null,
+      domain: scenario.domainSpecificContext?.domain ?? null,
+      companySlug: scenario.company.id,
+      difficulty: 'standard',
+    }).then((data: any) => {
+      if (data?.session?.id) {
+        set({ dbSessionId: data.session.id });
+      }
+    });
+  },
 }), {
   name: 'nebula-store-v1',
   partialize: (state) => ({
@@ -790,6 +928,8 @@ export const useAppStore = create<AppStore>()(persist((set, get) => ({
     messages: state.messages,
     kanbanColumns: state.kanbanColumns,
     revealedConstraints: state.revealedConstraints,
+    selectedDomain: state.selectedDomain,
+    firedCrossCompanyEvents: state.firedCrossCompanyEvents,
   }),
   onRehydrateStorage: () => (state) => {
     // JSON serialisation turns Date objects into strings — restore them

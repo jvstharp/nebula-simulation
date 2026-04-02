@@ -211,8 +211,199 @@ export interface CompanyCatalogEntry {
   constraintLabels: Record<string, string>;
 }
 
-export type Screen = 'desktop' | 'login' | 'register' | 'onboarding' | 'assessment' | 'mission-briefing' | 'office-intro' | 'prologue' | 'board-meeting' | 'dashboard' | 'simulation' | 'replay' | 'progress' | 'admin' | 'discovery' | 'browser' | 'vault' | 'profile' | 'controlpanel' | 'company-overview';
+export type Screen = 'desktop' | 'login' | 'register' | 'onboarding' | 'assessment' | 'mission-briefing' | 'office-intro' | 'prologue' | 'board-meeting' | 'dashboard' | 'simulation' | 'replay' | 'progress' | 'admin' | 'discovery' | 'browser' | 'vault' | 'profile' | 'controlpanel' | 'company-overview' | 'domain-selection' | 'enterprise-dashboard';
 
 export type AppTab = 'browser' | 'meetings' | 'drive' | 'assistant' | 'project';
 
 export type BrowserTab = 'overview' | 'email' | 'chat' | 'project' | 'calendar' | 'meetings' | 'assistant';
+
+// ─── Phase 5: Domains ──────────────────────────────────────────────────────
+export type SimDomain = 'pm' | 'consulting' | 'marketing' | 'data_analysis';
+
+export const DOMAIN_LABELS: Record<SimDomain, string> = {
+  pm: 'Product Management',
+  consulting: 'Consulting',
+  marketing: 'Marketing',
+  data_analysis: 'Data & Analysis',
+};
+
+export const DOMAIN_ROLES: Record<SimDomain, string[]> = {
+  pm: ['Associate PM', 'Product Manager', 'Senior PM', 'Group PM', 'VP Product'],
+  consulting: ['Analyst', 'Associate Consultant', 'Senior Consultant', 'Engagement Manager', 'Partner'],
+  marketing: ['Marketing Coordinator', 'Brand Manager', 'Growth Lead', 'CMO'],
+  data_analysis: ['Data Analyst', 'Senior Analyst', 'Analytics Manager', 'Head of BI'],
+};
+
+// ─── Phase 5: Company (DB-backed) ──────────────────────────────────────────
+export interface CompanyRecord {
+  id: string;
+  name: string;
+  industry: string;
+  domain: SimDomain;
+  size: string;
+  tagline: string;
+  challenge: string;
+  videoKeyword: string;
+  isStable: boolean;
+  stableData: CompanyStableData | null;
+  dynamicSeed: CompanyDynamicSeed | null;
+  parentIndustry: string | null;
+  active: boolean;
+}
+
+export interface CompanyStableData {
+  orgChart: OrgChartEntry[];
+  culture: string;
+  marketPosition: string;
+  businessPriorities: string[];
+  morale: string;
+  hiringNeeds: string[];
+}
+
+export interface OrgChartEntry {
+  id: string;
+  name: string;
+  title: string;
+  reportsTo: string | null;
+  personality: string;
+  communicationStyle: string;
+  goals: string;
+  frustrations: string;
+  avatar: string;
+}
+
+export interface CompanyDynamicSeed {
+  scenarioTemplates: string[];
+  marketConditions: string[];
+  internalPoliticsHooks: string[];
+  budgetPressures: string[];
+  crossCompanyLinks: string[];
+}
+
+// ─── Phase 5: Generated Scenario ────────────────────────────────────────────
+export interface GeneratedScenarioRecord {
+  id: string;
+  companyId: string;
+  domain: SimDomain;
+  difficulty: DifficultyLevel;
+  roleTitle: string;
+  scenarioData: GeneratedScenarioData;
+  generatedBy: string;
+  usageCount: number;
+  rating: number | null;
+  active: boolean;
+}
+
+export interface GeneratedScenarioData {
+  company: SimCompany;
+  characters: Character[];
+  initialMessages: Message[];
+  initialOKRs: OKR[];
+  initialKanban: KanbanColumn[];
+  prologueMessages: { from: string; delay: number; text: string }[];
+  cascadeEvents: SerializedCascadeEvent[];
+  characterSecrets: Record<string, { threshold: number; secretId: string; message: string }[]>;
+  constraintPatterns: Record<string, Array<{ keywords: string[]; constraint: string }>>;
+  constraintLabels: Record<string, string>;
+  crossCompanyReferences: CrossCompanyReference[];
+  domainSpecificContext: DomainContext;
+}
+
+export interface SerializedCascadeEvent {
+  id: string;
+  triggerType: 'time_elapsed' | 'character_ignored' | 'trust_threshold' | 'card_state';
+  triggerConfig: Record<string, unknown>;
+  characterId: string;
+  channel: 'email' | 'chat';
+  subject?: string;
+  message: string;
+}
+
+export interface CrossCompanyReference {
+  sourceCompanyId: string;
+  targetCompanyId: string;
+  characterId: string;
+  eventType: 'alumni_reference' | 'competitive_pressure' | 'partnership' | 'market_shift';
+  messageTemplate: string;
+  triggerCondition: { minElapsedSeconds?: number; minTrust?: number; requiredConstraint?: string };
+}
+
+export interface DomainContext {
+  domain: SimDomain;
+  roleTitle: string;
+  primaryMetrics: string[];
+  deliverables: string[];
+  stakeholderDynamics: string;
+  industryContext: string;
+}
+
+// ─── Phase 5: User Reputation ───────────────────────────────────────────────
+export type ReputationTier = 'newcomer' | 'reliable' | 'trusted' | 'expert';
+
+export interface UserReputationRecord {
+  id: string;
+  userId: string;
+  companyId: string;
+  domain: SimDomain;
+  sessionsCompleted: number;
+  avgComposite: number;
+  avgTrust: number;
+  bestScore: number;
+  totalConstraints: number;
+  skillSnapshot: SkillScores;
+  reputationTier: ReputationTier;
+  lastPlayedAt: Date | null;
+}
+
+export function computeReputationTier(avgComposite: number, sessionsCompleted: number): ReputationTier {
+  if (sessionsCompleted >= 5 && avgComposite >= 80) return 'expert';
+  if (sessionsCompleted >= 3 && avgComposite >= 65) return 'trusted';
+  if (sessionsCompleted >= 1 && avgComposite >= 50) return 'reliable';
+  return 'newcomer';
+}
+
+// ─── Phase 5: Enterprise ────────────────────────────────────────────────────
+export type OrgPlan = 'free' | 'pro' | 'enterprise';
+export type OrgRole = 'member' | 'manager' | 'admin';
+
+export interface OrganizationRecord {
+  id: string;
+  name: string;
+  slug: string;
+  plan: OrgPlan;
+  maxSeats: number;
+  features: Record<string, boolean>;
+  branding: { logo?: string; primaryColor?: string; companyName?: string };
+}
+
+export interface CohortRecord {
+  id: string;
+  orgId: string;
+  name: string;
+  description: string | null;
+  scenarioIds: string[];
+  domains: SimDomain[];
+  startsAt: Date | null;
+  endsAt: Date | null;
+}
+
+export interface CohortMemberProgress {
+  userId: string;
+  userName: string;
+  completedScenarios: number;
+  totalScenarios: number;
+  avgScore: number;
+  skillBreakdown: SkillScores;
+  lastActiveAt: Date | null;
+}
+
+export interface ManagerDashboardData {
+  org: OrganizationRecord;
+  cohorts: CohortRecord[];
+  totalMembers: number;
+  activeThisWeek: number;
+  avgOrgScore: number;
+  topPerformers: { userId: string; name: string; score: number }[];
+  domainBreakdown: Record<SimDomain, { completed: number; avgScore: number }>;
+  recentActivity: { userId: string; name: string; company: string; score: number; completedAt: Date }[];
+}

@@ -79,6 +79,31 @@ export async function POST(
       },
     });
 
+    // Phase 5: Update user reputation (fire and forget)
+    const companySlug = session.companySlug ?? session.scenarioId;
+    const avgTrust = Object.values(scores.trustFinal).reduce((a, b) => a + b, 0) /
+      Math.max(Object.values(scores.trustFinal).length, 1);
+    fetch(`${req.nextUrl.origin}/api/reputation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: user.id,
+        companyId: companySlug,
+        domain: session.domain ?? 'pm',
+        compositeScore: scores.compositeScore,
+        avgTrust,
+        constraintsFound: scores.constraintsFound,
+        skillScores: {
+          prioritisation: scores.prioritisation,
+          stakeholderMgmt: scores.stakeholderMgmt,
+          communication: scores.communication,
+          conflictResolution: scores.conflictResolution,
+          strategicThinking: scores.strategicThinking,
+          executionSpeed: scores.executionSpeed,
+        },
+      }),
+    }).catch(() => {}); // Non-blocking — reputation update is best-effort
+
     return NextResponse.json({ result, scores });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';

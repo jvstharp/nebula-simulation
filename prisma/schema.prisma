@@ -35,6 +35,10 @@ model SimSession {
   id             String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   userId         String   @db.Uuid @map("user_id")
   scenarioId     String   @map("scenario_id")
+  generatedScenarioId String? @db.Uuid @map("generated_scenario_id")
+  domain         String?  // pm, consulting, marketing, data_analysis
+  companySlug    String?  @map("company_slug")
+  difficulty     String   @default("standard")
   status         String   @default("active")
   stage          String   @default("planning") @map("simulation_stage")
   elapsedSeconds Int      @default(0) @map("elapsed_seconds")
@@ -42,12 +46,13 @@ model SimSession {
   createdAt      DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
   updatedAt      DateTime @default(now()) @db.Timestamptz(6) @map("updated_at")
 
-  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages  SimMessage[]
-  events    SessionEvent[]
-  result    SessionResult?
-  portfolio Portfolio?
-  documents SimDocument[]
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  generatedScenario GeneratedScenario? @relation("scenario_sessions", fields: [generatedScenarioId], references: [id])
+  messages          SimMessage[]
+  events            SessionEvent[]
+  result            SessionResult?
+  portfolio         Portfolio?
+  documents         SimDocument[]
 
   @@map("sim_sessions")
 }
@@ -138,4 +143,153 @@ model SimDocument {
 
   @@index([sessionId])
   @@map("sim_documents")
+}
+
+// ─── Phase 5: Companies ─────────────────────────────────────────────────────
+model Company {
+  id          String   @id // slug, e.g. "nexus-technologies"
+  name        String
+  industry    String
+  domain      String   // pm, consulting, marketing, data_analysis
+  size        String   // "300 people, Series C"
+  tagline     String
+  challenge   String
+  videoKeyword String  @map("video_keyword")
+  isStable    Boolean  @default(true) @map("is_stable") // stable layer vs dynamic
+  stableData  Json?    @map("stable_data")  // org chart, personas, strategic positioning
+  dynamicSeed Json?    @map("dynamic_seed") // seeds for AI scenario generation
+  parentIndustry String? @map("parent_industry") // Technology, Consulting, etc.
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt   DateTime @default(now()) @db.Timestamptz(6) @map("updated_at")
+
+  scenarios      GeneratedScenario[]
+  crossCompanyEvents CrossCompanyEvent[] @relation("source_company")
+  crossCompanyTargets CrossCompanyEvent[] @relation("target_company")
+
+  @@map("companies")
+}
+
+// ─── Phase 5: AI-Generated Scenarios ────────────────────────────────────────
+model GeneratedScenario {
+  id             String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  companyId      String   @map("company_id")
+  domain         String   // pm, consulting, marketing, data_analysis
+  difficulty     String   @default("standard") // guided, standard, pressure
+  roleTitle      String   @map("role_title")
+  scenarioData   Json     @map("scenario_data") // full generated CompanyCatalogEntry-compatible JSON
+  generatedBy    String   @default("claude-sonnet") @map("generated_by") // model used
+  usageCount     Int      @default(0) @map("usage_count")
+  rating         Float?   // avg user rating
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sessions SimSession[] @relation("scenario_sessions")
+
+  @@index([companyId, domain])
+  @@map("generated_scenarios")
+}
+
+// ─── Phase 5: User Reputation (persistent across companies) ─────────────────
+model UserReputation {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId      String   @db.Uuid @map("user_id")
+  companyId   String   @map("company_id")
+  domain      String
+  sessionsCompleted Int @default(0) @map("sessions_completed")
+  avgComposite    Float   @default(0) @map("avg_composite")
+  avgTrust        Float   @default(0) @map("avg_trust")
+  bestScore       Float   @default(0) @map("best_score")
+  totalConstraints Int   @default(0) @map("total_constraints")
+  skillSnapshot   Json    @default("{}") @map("skill_snapshot") // latest SkillScores
+  reputationTier  String  @default("newcomer") @map("reputation_tier") // newcomer, reliable, trusted, expert
+  lastPlayedAt    DateTime? @map("last_played_at") @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt       DateTime @default(now()) @db.Timestamptz(6) @map("updated_at")
+
+  @@unique([userId, companyId])
+  @@index([userId])
+  @@map("user_reputation")
+}
+
+// ─── Phase 5: Cross-Company Events ──────────────────────────────────────────
+model CrossCompanyEvent {
+  id               String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  sourceCompanyId  String   @map("source_company_id")
+  targetCompanyId  String   @map("target_company_id")
+  eventType        String   @map("event_type") // alumni_reference, competitive_pressure, partnership, market_shift
+  characterRef     String?  @map("character_ref") // character slug who references the other company
+  triggerCondition Json?    @map("trigger_condition") // when to fire this event
+  messageTemplate  String   @map("message_template")
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+
+  sourceCompany Company @relation("source_company", fields: [sourceCompanyId], references: [id], onDelete: Cascade)
+  targetCompany Company @relation("target_company", fields: [targetCompanyId], references: [id], onDelete: Cascade)
+
+  @@index([sourceCompanyId])
+  @@index([targetCompanyId])
+  @@map("cross_company_events")
+}
+
+// ─── Phase 5: Enterprise Tier ───────────────────────────────────────────────
+model Organization {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String
+  slug        String   @unique
+  plan        String   @default("free") // free, pro, enterprise
+  maxSeats    Int      @default(5) @map("max_seats")
+  features    Json     @default("{}") // feature flags
+  branding    Json     @default("{}") // custom branding
+  createdAt   DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt   DateTime @default(now()) @db.Timestamptz(6) @map("updated_at")
+
+  members   OrgMember[]
+  cohorts   Cohort[]
+
+  @@map("organizations")
+}
+
+model OrgMember {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  orgId     String   @db.Uuid @map("org_id")
+  userId    String   @db.Uuid @map("user_id")
+  role      String   @default("member") // member, manager, admin
+  joinedAt  DateTime @default(now()) @db.Timestamptz(6) @map("joined_at")
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId])
+  @@map("org_members")
+}
+
+model Cohort {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  orgId       String   @db.Uuid @map("org_id")
+  name        String
+  description String?
+  scenarioIds Json     @default("[]") @map("scenario_ids") // assigned scenarios
+  domains     Json     @default("[]") // assigned domains
+  startsAt    DateTime? @map("starts_at") @db.Timestamptz(6)
+  endsAt      DateTime? @map("ends_at") @db.Timestamptz(6)
+  createdAt   DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+
+  org     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  members CohortMember[]
+
+  @@map("cohorts")
+}
+
+model CohortMember {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  cohortId  String   @db.Uuid @map("cohort_id")
+  userId    String   @db.Uuid @map("user_id")
+  progress  Json     @default("{}") // track completion per scenario
+  joinedAt  DateTime @default(now()) @db.Timestamptz(6) @map("joined_at")
+
+  cohort Cohort @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+
+  @@unique([cohortId, userId])
+  @@map("cohort_members")
 }
