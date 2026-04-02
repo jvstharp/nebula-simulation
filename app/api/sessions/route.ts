@@ -12,7 +12,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { scenarioId = 'roadmap-reckoning', stateJson } = await req.json().catch(() => ({}));
+    const {
+      scenarioId = 'roadmap-reckoning',
+      stateJson,
+      generatedScenarioId,
+      domain,
+      companySlug,
+      difficulty = 'standard',
+    } = await req.json().catch(() => ({}));
 
     // Abandon any previously active sessions for this user
     await db.simSession.updateMany({
@@ -24,6 +31,10 @@ export async function POST(req: NextRequest) {
       data: {
         userId: user.id,
         scenarioId,
+        ...(generatedScenarioId && { generatedScenarioId }),
+        ...(domain && { domain }),
+        ...(companySlug && { companySlug }),
+        difficulty,
         status: 'active',
         stage: 'planning',
         stateJson: stateJson ?? undefined,
@@ -35,7 +46,7 @@ export async function POST(req: NextRequest) {
       data: {
         sessionId: session.id,
         type: 'session_started',
-        payload: { scenarioId },
+        payload: { scenarioId, domain, companySlug, difficulty },
       },
     });
 

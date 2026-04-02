@@ -21,6 +21,8 @@ import { BoardMeetingScreen } from "@/components/screens/board-meeting-screen";
 import { ControlPanelPopover } from "@/components/screens/control-panel-screen";
 import { ChaosOverlay } from "@/components/screens/chaos-overlay";
 import { CompanyOverviewScreen } from "@/components/screens/company-overview-screen";
+import DomainSelectionScreen from "@/components/screens/domain-selection-screen";
+import EnterpriseDashboardScreen from "@/components/screens/enterprise-dashboard-screen";
 
 /* ── Session guard — reconciles localStorage state with live Supabase session ── */
 function SessionGuard() {
@@ -141,7 +143,9 @@ export default function Home() {
       {screen === 'login'      && <LoginScreen />}
       {screen === 'register'   && <LoginScreen />}
       {screen === 'onboarding'        && <OnboardingScreen />}
+      {screen === 'domain-selection'   && <DomainSelectionScreen />}
       {screen === 'company-overview'  && <CompanyOverviewScreen />}
+      {screen === 'enterprise-dashboard' && <EnterpriseDashboardScreen />}
       {screen === 'mission-briefing'  && <MissionBriefingScreen />}
       {screen === 'assessment'        && <AssessmentScreen />}
       {screen === 'office-intro'      && <OfficeIntroScreen />}

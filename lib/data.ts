@@ -1405,6 +1405,10 @@ const NEXUS_COMPANY: SimCompany = {
   videoKeyword: 'modern tech office',
 };
 
+import { PHASE5_COMPANY_CATALOG, COMPANY_DOMAIN_MAP } from './company-catalog-phase5';
+
+export { COMPANY_DOMAIN_MAP };
+
 export const COMPANY_CATALOG: Record<string, CompanyCatalogEntry> = {
   'nexus-technologies': {
     company: NEXUS_COMPANY,
@@ -1450,4 +1454,6 @@ export const COMPANY_CATALOG: Record<string, CompanyCatalogEntry> = {
     constraintPatterns: CRESTLINE_CONSTRAINT_PATTERNS,
     constraintLabels: CRESTLINE_CONSTRAINT_LABELS,
   },
+  // Phase 5 companies — all 4 domains
+  ...PHASE5_COMPANY_CATALOG,
 };
