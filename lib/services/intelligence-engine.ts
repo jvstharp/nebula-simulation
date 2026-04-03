@@ -141,6 +141,7 @@ export interface ScenarioGenerationInput {
   domain: SimDomain;
   difficulty: DifficultyLevel;
   roleTitle: string;
+  characters?: Character[];
   userReputation?: { tier: string; avgScore: number; sessionsCompleted: number } | null;
   crossCompanyContext?: { companyId: string; companyName: string; industry: string }[];
 }
@@ -153,13 +154,24 @@ export async function generateScenario(input: ScenarioGenerationInput): Promise<
     domain,
     difficulty,
     roleTitle,
+    characters: preDefinedCharacters,
     userReputation,
     crossCompanyContext,
   } = input;
 
-  const orgChartContext = stableData?.orgChart
-    ? stableData.orgChart.map(e => `- ${e.name} (${e.title}): ${e.personality}. Goals: ${e.goals}. Frustrations: ${e.frustrations}`).join('\n')
-    : 'Generate 5 realistic characters with distinct personalities, agendas, and interpersonal dynamics.';
+  // If pre-defined characters are provided, use them as the character roster
+  const characterContext = preDefinedCharacters?.length
+    ? `PRE-DEFINED CHARACTERS (use these EXACT characters — do NOT generate new ones):
+${preDefinedCharacters.map(c => `- ID: "${c.id}", Name: ${c.name}, Title: ${c.title}, Personality: ${c.personality}, Visible Agenda: ${c.visibleAgenda ?? 'N/A'}, Trust: ${c.trust}, Emotion: ${c.emotion}`).join('\n')}
+
+You MUST use these character IDs, names, and titles exactly. Generate messages, OKRs, and events that feature these specific characters.`
+    : '';
+
+  const orgChartContext = !preDefinedCharacters?.length
+    ? (stableData?.orgChart
+      ? stableData.orgChart.map(e => `- ${e.name} (${e.title}): ${e.personality}. Goals: ${e.goals}. Frustrations: ${e.frustrations}`).join('\n')
+      : 'Generate 5 realistic characters with distinct personalities, agendas, and interpersonal dynamics.')
+    : '';
 
   const dynamicSeedContext = dynamicSeed
     ? `DYNAMIC SEEDS (use these as inspiration, vary them):
@@ -196,6 +208,8 @@ ${DIFFICULTY_PROMPTS[difficulty]}
 
 ROLE: ${roleTitle}
 
+${characterContext}
+
 ${orgChartContext ? `ORG CHART:\n${orgChartContext}` : ''}
 
 ${dynamicSeedContext}
@@ -207,12 +221,14 @@ ${crossCompanyCtx}
 CULTURE & CONTEXT:
 ${stableData ? `Culture: ${stableData.culture}\nMarket position: ${stableData.marketPosition}\nMorale: ${stableData.morale}\nBusiness priorities: ${stableData.businessPriorities.join(', ')}\nHiring needs: ${stableData.hiringNeeds.join(', ')}` : 'Generate realistic culture, market position, and internal dynamics.'}`;
 
-  const userPrompt = `Generate a complete simulation scenario for ${company.name}. The user is a ${roleTitle} in the ${domain} domain at ${difficulty} difficulty.
-
-Return a JSON object with this EXACT structure:
-{
-  "company": { "id": "${company.id}", "name": "${company.name}", "industry": "${company.industry}", "size": "${company.size}", "tagline": "${company.tagline}", "challenge": "2-3 sentence challenge description", "why": "why this scenario matters", "videoKeyword": "${company.videoKeyword}" },
-  "characters": [
+  const charactersInstruction = preDefinedCharacters?.length
+    ? `"characters": ${JSON.stringify(preDefinedCharacters.map(c => ({
+        id: c.id, name: c.name, title: c.title, avatar: c.avatar, color: c.color,
+        personality: c.personality, visibleAgenda: c.visibleAgenda, trust: c.trust,
+        emotion: c.emotion, online: c.online,
+      })))},
+    // ^^^ COPY the characters array EXACTLY as shown above. Do NOT modify or generate new characters.`
+    : `"characters": [
     // EXACTLY 5 characters. Each must have:
     {
       "id": "lowercase-slug",
@@ -226,7 +242,14 @@ Return a JSON object with this EXACT structure:
       "emotion": "neutral|frustrated|cooperative|disengaged|alarmed",
       "online": true|false
     }
-  ],
+  ],`;
+
+  const userPrompt = `Generate a complete simulation scenario for ${company.name}. The user is a ${roleTitle} in the ${domain} domain at ${difficulty} difficulty.${preDefinedCharacters?.length ? ' The characters are pre-defined — generate all scenario content (messages, OKRs, Kanban, events) around them. Each new session MUST have a completely different case study/challenge — never repeat the same scenario.' : ''}
+
+Return a JSON object with this EXACT structure:
+{
+  "company": { "id": "${company.id}", "name": "${company.name}", "industry": "${company.industry}", "size": "${company.size}", "tagline": "${company.tagline}", "challenge": "2-3 sentence challenge description", "why": "why this scenario matters", "videoKeyword": "${company.videoKeyword}" },
+  ${charactersInstruction}
   "initialMessages": [
     // 5-7 emails and chats that set the scene. MUST include:
     // - A briefing email from the most senior character
@@ -332,6 +355,11 @@ CRITICAL RULES:
   const cleaned = raw.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
 
   const parsed = JSON.parse(cleaned) as GeneratedScenarioData;
+
+  // Override with pre-defined characters if provided
+  if (preDefinedCharacters?.length) {
+    parsed.characters = preDefinedCharacters;
+  }
 
   // Post-process: ensure timestamps are proper Date offsets
   parsed.initialMessages = parsed.initialMessages.map((msg, i) => ({

@@ -180,8 +180,19 @@ export interface SimCompany {
 export interface UserProfile {
   role: string;
   experienceLevel: 'junior' | 'mid' | 'senior';
+  roleTitle: string;
+  focusArea: string;
   domain: string;
   chosenCompany: SimCompany | null;
+}
+
+export function experienceToDifficulty(level: UserProfile['experienceLevel']): DifficultyLevel {
+  const map: Record<UserProfile['experienceLevel'], DifficultyLevel> = {
+    junior: 'guided',
+    mid: 'standard',
+    senior: 'pressure',
+  };
+  return map[level] ?? 'standard';
 }
 
 export interface CompanyCatalogEntry {

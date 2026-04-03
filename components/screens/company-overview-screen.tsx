@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useAppStore } from "@/lib/store";
+import { experienceToDifficulty } from "@/lib/types";
+import { COMPANY_CATALOG } from "@/lib/data";
 
 const T = {
   bg:      '#121212',
@@ -20,13 +22,15 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 export function CompanyOverviewScreen() {
-  const { userProfile, setOnboardingStep, setScreen } = useAppStore();
+  const { userProfile, setOnboardingStep, setScreen, setScenarioLoading, startDynamicSession } = useAppStore();
   const company = userProfile?.chosenCompany;
 
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoCredit, setVideoCredit] = useState('');
   const [videoError, setVideoError] = useState(false);
   const [entered, setEntered] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
 
   useEffect(() => {
     setEntered(true);
@@ -37,6 +41,50 @@ export function CompanyOverviewScreen() {
       .then(data => { if (data.url) { setVideoUrl(data.url); setVideoCredit(data.credit ?? ''); } })
       .catch(() => setVideoError(true));
   }, [company]);
+
+  const handleContinue = async () => {
+    if (!company || generating) return;
+    setGenerating(true);
+    setScenarioLoading(true);
+    setGenerationError(null);
+
+    try {
+      // Get hardcoded characters from catalog if available
+      const catalogEntry = COMPANY_CATALOG[company.id];
+      const characters = catalogEntry?.characters ?? undefined;
+      const difficulty = experienceToDifficulty(userProfile?.experienceLevel ?? 'mid');
+      const roleTitle = userProfile?.roleTitle || 'Product Manager';
+
+      const res = await fetch('/api/scenarios/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: company.id,
+          domain: 'pm',
+          difficulty,
+          roleTitle,
+          characters,
+        }),
+      });
+
+      if (!res.ok) throw new Error('Scenario generation failed');
+
+      const data = await res.json();
+      if (data.scenario) {
+        startDynamicSession(data.scenario, data.scenarioId);
+        setScenarioLoading(false);
+        // Go to team profiles step
+        setOnboardingStep(1);
+        setScreen('onboarding');
+      } else {
+        throw new Error('No scenario returned');
+      }
+    } catch (err) {
+      setGenerationError(err instanceof Error ? err.message : 'Failed to generate scenario');
+      setScenarioLoading(false);
+      setGenerating(false);
+    }
+  };
 
   const goToTeam = () => {
     setOnboardingStep(1);
@@ -110,18 +158,39 @@ export function CompanyOverviewScreen() {
           <p style={{ fontSize: 14, color: T.muted, lineHeight: 1.65, margin: 0 }}>{company.why}</p>
         </div>
 
+        {/* Error message */}
+        {generationError && (
+          <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 12, padding: '12px 16px' }}>
+            <p style={{ fontSize: 13, color: '#ef4444', margin: 0 }}>Failed to generate your case study. Please try again.</p>
+          </div>
+        )}
+
         {/* CTA */}
         <div style={{ marginTop: 'auto', paddingTop: 8 }}>
           <button
-            onClick={goToTeam}
-            style={{ width: '100%', padding: '14px 28px', borderRadius: 12, background: T.primary, border: 'none', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '-0.01em' }}>
-            Meet the team →
+            onClick={handleContinue}
+            disabled={generating}
+            style={{
+              width: '100%', padding: '14px 28px', borderRadius: 12, background: T.primary,
+              border: 'none', color: '#fff', fontSize: 15, fontWeight: 600,
+              cursor: generating ? 'wait' : 'pointer', fontFamily: 'inherit',
+              letterSpacing: '-0.01em', opacity: generating ? 0.7 : 1,
+              transition: 'opacity 0.2s ease',
+            }}>
+            {generating ? (
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+                <span style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite', display: 'inline-block' }} />
+                Generating your case study...
+              </span>
+            ) : 'Meet the team →'}
           </button>
           <p style={{ textAlign: 'center', fontSize: 12, color: 'rgba(175,163,159,0.35)', marginTop: 12 }}>
-            You&apos;ll get to know your colleagues before the simulation starts
+            {generating ? 'This takes a few seconds — building a unique scenario for you' : "You'll get to know your colleagues before the simulation starts"}
           </p>
         </div>
       </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

@@ -24,12 +24,14 @@ export async function POST(req: NextRequest) {
       difficulty = 'standard',
       roleTitle,
       userId,
+      characters: requestCharacters,
     } = body as {
       companyId: string;
       domain: SimDomain;
       difficulty: DifficultyLevel;
       roleTitle: string;
       userId?: string;
+      characters?: import('@/lib/types').Character[];
     };
 
     if (!companyId || !domain || !roleTitle) {
@@ -104,6 +106,9 @@ export async function POST(req: NextRequest) {
         .map(c => ({ companyId: c.company.id, companyName: c.company.name, industry: c.company.industry }));
     }
 
+    // Use characters from request, catalog, or let the engine generate them
+    const characters = requestCharacters ?? catalogEntry?.characters ?? undefined;
+
     const input: ScenarioGenerationInput = {
       company,
       stableData: (companyRecord?.stableData as unknown as CompanyStableData) ?? null,
@@ -111,6 +116,7 @@ export async function POST(req: NextRequest) {
       domain,
       difficulty,
       roleTitle,
+      characters,
       userReputation,
       crossCompanyContext,
     };
