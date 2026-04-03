@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Character, CharacterId, Message, SessionState, Screen, AppTab, BrowserTab, ChaosEvent, OKR, PortfolioCaseStudy, AccessibilityPrefs, SimulationStage, KanbanCard, KanbanColumn, CompanyCatalogEntry, SimDomain, ReputationTier, GeneratedScenarioData } from './types';
+import { Character, CharacterId, Message, SessionState, Screen, AppTab, BrowserTab, ChaosEvent, OKR, PortfolioCaseStudy, AccessibilityPrefs, SimulationStage, KanbanCard, KanbanColumn, CompanyCatalogEntry, SimDomain, ReputationTier, GeneratedScenarioData, experienceToDifficulty } from './types';
 import { CHARACTERS, INITIAL_SESSION, INITIAL_MESSAGES, INITIAL_OKRS, REPLY_MAP, INITIAL_KANBAN_COLUMNS, CARD_REACTION_MAP, COMPANY_CATALOG, PROLOGUE_MESSAGES } from './data';
 import { getSoundscape } from './soundscape';
 import { generateCharacterReply, TriggerType } from './ai';
@@ -176,6 +176,8 @@ interface AppStore {
   firedCrossCompanyEvents: string[];
 
   // Phase 5: Dynamic scenario support
+  scenarioLoading: boolean;
+  setScenarioLoading: (loading: boolean) => void;
   activeGeneratedScenario: GeneratedScenarioData | null;
   startDynamicSession: (scenario: GeneratedScenarioData, scenarioId?: string) => void;
 }
@@ -221,12 +223,24 @@ export const useAppStore = create<AppStore>()(persist((set, get) => ({
   })),
 
   startSession: () => {
-    const { userProfile } = get();
+    const { userProfile, activeGeneratedScenario } = get();
     const companyId = userProfile?.chosenCompany?.id ?? 'nexus-technologies';
+
+    // If a dynamic scenario was already generated (via company-overview), use it
+    if (activeGeneratedScenario) {
+      // Session is already set up by startDynamicSession — just ensure it's active
+      const session = get().session;
+      if (session) {
+        set({ session: { ...session, status: 'active' } });
+      }
+      getSoundscape().init().catch(() => {});
+      return;
+    }
+
+    // Fallback: load from hardcoded catalog (for backwards compatibility)
     const catalog = COMPANY_CATALOG[companyId] ?? COMPANY_CATALOG['nexus-technologies'];
 
     const baseSession = { ...INITIAL_SESSION, startedAt: new Date(), chaosTier: null as null, chaosResolving: false, portfolio: null as null };
-    // Override OKRs with catalog-specific OKRs
     const session = { ...baseSession, scenarioId: companyId, okrs: catalog.initialOKRs };
 
     set({
@@ -239,7 +253,6 @@ export const useAppStore = create<AppStore>()(persist((set, get) => ({
     });
     getSoundscape().init().catch(() => {});
 
-    // Create DB session record (fire and forget — sim runs offline if this fails)
     apiPost('/api/sessions', { scenarioId: companyId }).then((data: any) => {
       if (data?.session?.id) {
         set({ dbSessionId: data.session.id });
@@ -795,7 +808,7 @@ export const useAppStore = create<AppStore>()(persist((set, get) => ({
 
   userProfile: null,
   setUserProfile: (p) => set(s => ({
-    userProfile: { ...s.userProfile, role: '', experienceLevel: 'mid', domain: '', chosenCompany: null, ...s.userProfile, ...p },
+    userProfile: { role: '', experienceLevel: 'mid', roleTitle: 'Product Manager', focusArea: 'general', domain: '', chosenCompany: null, ...s.userProfile, ...p },
   })),
   setAssessmentAnswer: (i, v) => {
     const answers = [...get().assessmentAnswers];
@@ -818,6 +831,9 @@ export const useAppStore = create<AppStore>()(persist((set, get) => ({
   userReputation: null,
   setUserReputation: (userReputation) => set({ userReputation }),
   firedCrossCompanyEvents: [],
+
+  scenarioLoading: false,
+  setScenarioLoading: (loading) => set({ scenarioLoading: loading }),
 
   activeGeneratedScenario: null,
   startDynamicSession: (scenario, scenarioId) => {
@@ -907,7 +923,7 @@ export const useAppStore = create<AppStore>()(persist((set, get) => ({
       generatedScenarioId: scenarioId ?? null,
       domain: scenario.domainSpecificContext?.domain ?? null,
       companySlug: scenario.company.id,
-      difficulty: 'standard',
+      difficulty: experienceToDifficulty(userProfile?.experienceLevel ?? 'mid'),
     }).then((data: any) => {
       if (data?.session?.id) {
         set({ dbSessionId: data.session.id });

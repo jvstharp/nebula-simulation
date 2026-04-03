@@ -5,25 +5,33 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(req: NextRequest) {
   try {
-    const { role, experienceLevel, domain, conversationSummary } = await req.json() as {
+    const { role, experienceLevel, roleTitle, focusArea, domain, conversationSummary } = await req.json() as {
       role: string;
       experienceLevel: string;
+      roleTitle: string;
+      focusArea: string;
       domain: string;
       conversationSummary: string;
     };
 
-    const prompt = `Generate exactly 3 distinct company scenarios for a product simulation matching this candidate profile:
-- Role/background: ${role || 'Product Manager'}
-- Experience level: ${experienceLevel || 'mid-level'}
-- Domain/industry background: ${domain || 'technology'}
-- Context from their answers: ${conversationSummary || 'general PM background'}
+    const effectiveRole = roleTitle || role || 'Product Manager';
+    const effectiveLevel = experienceLevel || 'mid-level';
+    const effectiveFocus = focusArea || 'general product management';
 
-Requirements for the 3 companies:
-1. Each must be in a clearly different industry (e.g. FinTech, HealthTech, B2B SaaS, E-commerce, EdTech, CleanTech, etc.)
-2. Vary in scale: one early-stage (Series A/B), one growth-stage (Series B/C), one scale-up (Series C+)
-3. Each must have a realistic, specific PM challenge the user will face — not generic
-4. The "why" field must reference something specific from the candidate's background
-5. videoKeyword should be 2-3 words suitable for a stock video search (e.g. "financial technology", "hospital staff", "logistics warehouse")
+    const prompt = `Generate exactly 3 distinct PM case study scenarios for a career simulation platform. These should be tailored to this candidate:
+
+- Job title: ${effectiveRole}
+- Experience level: ${effectiveLevel}
+- PM focus area: ${effectiveFocus}
+- Background context: ${conversationSummary || 'general PM background'}
+
+Requirements for the 3 case studies:
+1. Each must be in a clearly different industry (e.g. FinTech, HealthTech, B2B SaaS, E-commerce, EdTech, CleanTech, DevTools, etc.)
+2. Vary in company stage: one early-stage (Series A/B, 30-80 people), one growth-stage (Series B/C, 100-300 people), one scale-up (Series C+/public, 500+ people)
+3. Each must have a realistic, specific PM challenge that aligns with the candidate's focus area (${effectiveFocus}). The challenge should feel like a real workplace situation — not a textbook exercise.
+4. The "why" field must reference something specific from the candidate's background or focus area
+5. The challenge should be completable in a 30-60 minute simulation session
+6. videoKeyword should be 2-3 words suitable for a stock video search (e.g. "financial technology", "hospital staff", "logistics warehouse")
 
 Return ONLY a valid JSON array, no markdown, no extra text:
 [
@@ -34,7 +42,7 @@ Return ONLY a valid JSON array, no markdown, no extra text:
     "size": "X people, Series Y",
     "tagline": "One-line company mission",
     "challenge": "2-3 sentences describing the specific PM challenge they will simulate",
-    "why": "One sentence explaining why this matches the candidate's background",
+    "why": "One sentence explaining why this matches the candidate's profile and focus",
     "videoKeyword": "search terms"
   },
   ...

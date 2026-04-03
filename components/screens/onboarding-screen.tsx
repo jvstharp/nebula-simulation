@@ -172,30 +172,62 @@ function CompanyCard({ company, onSelect, selected }: { company: SimCompany; onS
 }
 
 /* ── AI Onboarding Chat ──────────────────────────────────────────────────────── */
-function OnboardingChat({ userName, onComplete, onSkip }: { userName: string; onComplete: (company: SimCompany) => void; onSkip: () => void }) {
-  const firstMsg = `Hi ${userName}, I'm Alex. I'll match you to the right company scenario in just a couple of questions. What kind of product work have you been doing, and in what industry?`;
-  const [msgs, setMsgs] = useState<ChatMsg[]>([{ role: 'alex', text: firstMsg, id: 'init' }]);
+interface OnboardingProfile {
+  experienceLevel: 'junior' | 'mid' | 'senior';
+  roleTitle: string;
+  focusArea: string;
+}
+
+function OnboardingChat({ userName, onComplete, onSkip }: { userName: string; onComplete: (company: SimCompany, profile: OnboardingProfile) => void; onSkip: () => void }) {
+  const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // start loading — fetching first message
   const [chatDone, setChatDone] = useState(false);
   const [companies, setCompanies] = useState<SimCompany[] | null>(null);
   const [loadingCompanies, setLoadingCompanies] = useState(false);
   const [pickedCompany, setPickedCompany] = useState<SimCompany | null>(null);
-  const [conversationContext, setConversationContext] = useState({ role: '', experienceLevel: '', domain: '' });
+  const [profileData, setProfileData] = useState<OnboardingProfile>({ experienceLevel: 'mid', roleTitle: 'Product Manager', focusArea: 'general' });
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [msgs, loading, companies, loadingCompanies]);
 
-  const fetchCompanies = async (allMsgs: ChatMsg[]) => {
+  // Fetch Alex's dynamic greeting on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/onboarding/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: [], userName }),
+        });
+        const data = await res.json();
+        const greeting = data.reply ?? `Hi ${userName}, I'm Alex — welcome to Nebula! Tell me a bit about your professional background and experience level.`;
+        setMsgs([{ role: 'alex', text: greeting, id: 'init' }]);
+      } catch {
+        setMsgs([{ role: 'alex', text: `Hi ${userName}, I'm Alex — welcome to Nebula! Tell me a bit about your professional background and experience level.`, id: 'init' }]);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [userName]);
+
+  const fetchCompanies = async (allMsgs: ChatMsg[], profile: OnboardingProfile) => {
     setLoadingCompanies(true);
     try {
       const summary = allMsgs.filter(m => m.role === 'user').map(m => m.text).join(' | ');
       const res = await fetch('/api/onboarding/companies', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...conversationContext, conversationSummary: summary }),
+        body: JSON.stringify({
+          role: profile.roleTitle,
+          experienceLevel: profile.experienceLevel,
+          roleTitle: profile.roleTitle,
+          focusArea: profile.focusArea,
+          domain: 'product management',
+          conversationSummary: summary,
+        }),
       });
       const data = await res.json();
       setCompanies(data.companies ?? []);
@@ -230,14 +262,18 @@ function OnboardingChat({ userName, onComplete, onSkip }: { userName: string; on
       setMsgs(withReply);
       if (data.complete) setChatDone(true);
       if (data.generateCompanies) {
-        // Infer context from conversation for the companies API
-        const userTexts = updated.filter(m => m.role === 'user').map(m => m.text).join(' ');
-        setConversationContext({ role: 'Product Manager', experienceLevel: 'mid', domain: userTexts.slice(0, 200) });
-        fetchCompanies(withReply);
+        // Capture AI-extracted profile fields
+        const extracted: OnboardingProfile = {
+          experienceLevel: data.experienceLevel ?? profileData.experienceLevel,
+          roleTitle: data.roleTitle ?? profileData.roleTitle,
+          focusArea: data.focusArea ?? profileData.focusArea,
+        };
+        setProfileData(extracted);
+        fetchCompanies(withReply, extracted);
       }
     } catch {
       setMsgs(prev => [...prev, { role: 'alex', text: "Let me pull up some options for you.", id: 'err' }]);
-      fetchCompanies(msgs);
+      fetchCompanies(msgs, profileData);
     } finally {
       setLoading(false);
     }
@@ -301,7 +337,7 @@ function OnboardingChat({ userName, onComplete, onSkip }: { userName: string; on
       <div style={{ flexShrink: 0, borderTop: `1px solid ${T.border2}`, background: T.bg, padding: '12px 16px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))' }}>
         {chatDone && pickedCompany ? (
           <button
-            onClick={() => onComplete(pickedCompany)}
+            onClick={() => onComplete(pickedCompany, profileData)}
             style={{ width: '100%', padding: '13px 20px', borderRadius: 10, background: T.primary, border: 'none', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
             Explore {pickedCompany.name} →
           </button>
@@ -351,8 +387,13 @@ export function OnboardingScreen() {
     }
   };
 
-  const handleChatComplete = (company: import('@/lib/types').SimCompany) => {
-    setUserProfile({ chosenCompany: company });
+  const handleChatComplete = (company: import('@/lib/types').SimCompany, profile: OnboardingProfile) => {
+    setUserProfile({
+      chosenCompany: company,
+      experienceLevel: profile.experienceLevel,
+      roleTitle: profile.roleTitle,
+      focusArea: profile.focusArea,
+    });
     setScreen('company-overview');
   };
 
