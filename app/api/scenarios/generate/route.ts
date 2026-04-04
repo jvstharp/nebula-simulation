@@ -11,6 +11,9 @@ import { generateScenario, type ScenarioGenerationInput } from '@/lib/services/i
 import { COMPANY_CATALOG } from '@/lib/data';
 import type { SimDomain, DifficultyLevel, CompanyStableData, CompanyDynamicSeed } from '@/lib/types';
 
+// Allow up to 60s for Sonnet-class scenario generation
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   try {
     if (!process.env.ANTHROPIC_API_KEY) {
