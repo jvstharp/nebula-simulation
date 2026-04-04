@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const {
       companyId,
+      company: requestCompany,
       domain,
       difficulty = 'standard',
       roleTitle,
@@ -27,6 +28,7 @@ export async function POST(req: NextRequest) {
       characters: requestCharacters,
     } = body as {
       companyId: string;
+      company?: import('@/lib/types').SimCompany;
       domain: SimDomain;
       difficulty: DifficultyLevel;
       roleTitle: string;
@@ -38,7 +40,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'companyId, domain, and roleTitle are required' }, { status: 400 });
     }
 
-    // Try to get company from DB first, fall back to hardcoded catalog
+    // Try to get company from DB first, fall back to hardcoded catalog, then to the passed company object
     let companyRecord = null;
     try {
       companyRecord = await prisma.company.findUnique({ where: { id: companyId } });
@@ -47,7 +49,7 @@ export async function POST(req: NextRequest) {
     }
 
     const catalogEntry = COMPANY_CATALOG[companyId];
-    if (!companyRecord && !catalogEntry) {
+    if (!companyRecord && !catalogEntry && !requestCompany) {
       return NextResponse.json({ error: `Company ${companyId} not found` }, { status: 404 });
     }
 
@@ -62,7 +64,7 @@ export async function POST(req: NextRequest) {
           why: '',
           videoKeyword: companyRecord.videoKeyword,
         }
-      : catalogEntry!.company;
+      : (catalogEntry?.company ?? requestCompany!);
 
     // Get user reputation if userId provided
     let userReputation = null;

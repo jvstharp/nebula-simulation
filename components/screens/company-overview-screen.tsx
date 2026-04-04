@@ -60,6 +60,7 @@ export function CompanyOverviewScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           companyId: company.id,
+          company,
           domain: 'pm',
           difficulty,
           roleTitle,
