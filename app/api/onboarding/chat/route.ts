@@ -41,11 +41,17 @@ Set "generateCompanies":true ONLY in step 3 (after collecting both answers). Als
 Set "complete":true ONLY in step 4 (the final closing after company is confirmed).
 For steps 1 and 2, set experienceLevel/roleTitle/focusArea to null.`;
 
+    // Anthropic API requires at least one message — when client sends []
+    // (initial greeting fetch on mount), inject a synthetic user message.
+    const apiMessages = messages.length > 0
+      ? messages
+      : [{ role: 'user' as const, content: `Hi, I'm ${name}.` }];
+
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 400,
       system: systemPrompt,
-      messages,
+      messages: apiMessages,
     });
 
     const raw = response.content[0].type === 'text' ? response.content[0].text.trim() : '';
