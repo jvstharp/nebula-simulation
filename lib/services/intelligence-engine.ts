@@ -345,8 +345,8 @@ CRITICAL RULES:
 10. The OKRs should be achievable within a 30-60 minute simulation session.`;
 
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 8000,
+    model: 'claude-sonnet-4-5-20251001',
+    max_tokens: 4096,
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
   });
@@ -387,8 +387,8 @@ export async function generateScenarioVariation(
   variationSeed: string,
 ): Promise<GeneratedScenarioData> {
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 8000,
+    model: 'claude-sonnet-4-5-20251001',
+    max_tokens: 4096,
     system: `You are the Nebula Intelligence Engine. Given a base scenario, generate a VARIATION that keeps the same characters and company but changes the core challenge, hidden constraints, and market conditions. The variation should feel like a different week at the same company.
 
 Variation seed: ${variationSeed}
